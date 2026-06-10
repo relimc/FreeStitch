@@ -1,52 +1,48 @@
 <template>
     <div class="sidebar">
+        <!-- 标题区 -->
         <div class="sidebar-header">
             <h2>🖼️ 随心拼</h2>
-            <p>点击图片添加至画布 | 支持多选导入</p>
+            <p>自由拼接 | 创意无限</p>
         </div>
         
-        <div class="upload-area">
-            <label class="upload-btn">
-                📤 导入图片
-                <input type="file" accept="image/*" multiple @change="handleFileSelect">
-            </label>
-        </div>
-        
-        <!-- 图片列表区域：可滚动，flex 自动填充剩余空间 -->
-        <div class="image-gallery">
-            <div v-for="img in images" :key="img.id" 
-                 class="gallery-item" 
-                 :class="{ selected: isSelected(img.id) }"
-                 @click="$emit('add-to-canvas', img.id)">
-                <div class="gallery-img-wrapper">
+        <!-- 待选图片区 -->
+        <div class="gallery-section">
+            <div class="section-header">
+                <span>📁 图片素材库</span>
+                <label class="upload-trigger">
+                    <span>+ 导入</span>
+                    <input type="file" accept="image/*" multiple @change="handleFileSelect" style="display:none">
+                </label>
+            </div>
+            <div class="image-grid">
+                <div v-for="img in images" :key="img.id" 
+                    class="gallery-item" 
+                    :class="{ selected: selectedIds.includes(img.id) }"
+                    @click="$emit('add-to-canvas', img.id)">
                     <img :src="img.dataURL" :alt="img.name">
+                    <div class="gallery-item-name">{{ img.name.slice(0, 12) }}</div>
+                    <div class="gallery-item-remove" @click.stop="$emit('remove', img.id)">✖</div>
+                    <div v-if="selectedIds.includes(img.id)" class="selected-mark">✓</div>
                 </div>
-                <div class="gallery-item-name">{{ img.name.slice(0, 14) }}</div>
-                <div class="gallery-actions">
-                    <div class="gallery-btn remove-btn" @click.stop="$emit('remove', img.id)">✖</div>
+                <div v-if="images.length === 0" class="empty-gallery">
+                    ✨ 点击「+ 导入」添加图片
                 </div>
-                <div v-if="isSelected(img.id)" class="selected-mark">✓</div>
             </div>
-            <div v-if="images.length === 0" class="empty-gallery">
-                ✨ 暂无图片，点击导入
+            <div v-if="images.length > 0" class="clear-gallery" @click="$emit('clear-gallery')">
+                🗑️ 清空图库
             </div>
-        </div>
-        
-        <!-- 清空图库按钮：固定在底部 -->
-        <div class="clear-gallery-wrapper" v-if="images.length > 0">
-            <button class="clear-gallery-btn" @click="$emit('clear-gallery')">🗑️ 清空图库</button>
         </div>
     </div>
 </template>
 
 <script setup>
-const props = defineProps({
+defineProps({
     images: { type: Array, default: () => [] },
     selectedIds: { type: Array, default: () => [] }
 });
-const emit = defineEmits(['upload', 'remove', 'add-to-canvas', 'clear-gallery']);
 
-const isSelected = (id) => props.selectedIds.includes(id);
+const emit = defineEmits(['upload', 'remove', 'add-to-canvas', 'clear-gallery']);
 
 const handleFileSelect = (e) => {
     if (e.target.files.length) {
@@ -57,22 +53,21 @@ const handleFileSelect = (e) => {
 </script>
 
 <style scoped>
+/* 样式从原 App.vue 中复制 .sidebar 相关样式 */
 .sidebar {
-    width: 280px;
+    width: 320px;
     background: #ffffff;
     border-right: 1px solid #e8ecf0;
     display: flex;
     flex-direction: column;
     height: 100vh;
-    overflow: hidden;
+    overflow: visible;
 }
-
 .sidebar-header {
-    padding: 1.5rem 1.2rem 0.8rem;
+    padding: 20px 20px 12px;
     border-bottom: 1px solid #eef2f6;
     flex-shrink: 0;
 }
-
 .sidebar-header h2 {
     font-size: 1.4rem;
     font-weight: 700;
@@ -81,181 +76,116 @@ const handleFileSelect = (e) => {
     -webkit-background-clip: text;
     color: transparent;
 }
-
 .sidebar-header p {
     font-size: 0.7rem;
     color: #6b7280;
-    margin-top: 6px;
+    margin-top: 4px;
 }
-
-.upload-area {
-    padding: 1rem;
+.gallery-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-bottom: 1px solid #eef2f6;
+}
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f8fafc;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #475569;
     flex-shrink: 0;
 }
-
-.upload-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: #f0f7ff;
-    padding: 10px 0;
-    border-radius: 60px;
+.upload-trigger {
     cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s;
-    border: 1px solid #dce5f0;
     color: #3b82f6;
+    font-size: 0.75rem;
 }
-
-.upload-btn:hover {
-    background: #e6f0fe;
-    transform: scale(0.98);
-}
-
-input[type="file"] {
-    display: none;
-}
-
-/* 图片列表区域：可滚动，自动填充剩余空间 */
-.image-gallery {
+.image-grid {
     flex: 1;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 12px;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     align-content: flex-start;
 }
-
 .gallery-item {
-    background: #ffffff;
-    border-radius: 16px;
+    background: #f8fafc;
+    border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
     position: relative;
-    border: 1px solid #eef2f6;
+    border: 1px solid #e2e8f0;
     transition: all 0.2s;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-    height: 160px;
-    display: flex;
-    flex-direction: column;
 }
-
 .gallery-item.selected {
     border-color: #3b82f6;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     background: #eff6ff;
 }
-
-.gallery-item:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-}
-
-.gallery-img-wrapper {
-    flex: 1;
-    overflow: hidden;
-    background: #f8fafc;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.gallery-img-wrapper img {
+.gallery-item img {
     width: 100%;
-    height: 100%;
+    aspect-ratio: 1/1;
     object-fit: cover;
     display: block;
 }
-
 .gallery-item-name {
     font-size: 0.6rem;
-    padding: 6px 6px;
+    padding: 6px;
     text-align: center;
-    background: #fafcfc;
+    background: #ffffff;
     color: #374151;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 500;
-    flex-shrink: 0;
 }
-
-.gallery-actions {
+.gallery-item-remove {
     position: absolute;
     top: 4px;
     right: 4px;
-    display: flex;
-    gap: 6px;
-}
-
-.gallery-btn {
-    background: rgba(255,255,255,0.9);
-    border-radius: 30px;
-    width: 24px;
-    height: 24px;
+    background: rgba(0,0,0,0.6);
+    border-radius: 20px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
-    backdrop-filter: blur(2px);
-    color: #374151;
-    transition: 0.1s;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    color: white;
 }
-
-.gallery-btn.remove-btn:hover {
-    background: #fee2e2;
-    color: #dc2626;
-}
-
 .selected-mark {
     position: absolute;
     bottom: 4px;
     left: 4px;
     background: #3b82f6;
     border-radius: 20px;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: bold;
     color: white;
 }
-
 .empty-gallery {
     grid-column: span 2;
     text-align: center;
     color: #9ca3af;
     padding: 40px 0;
 }
-
-/* 清空图库按钮：固定在底部，不影响滚动区域 */
-.clear-gallery-wrapper {
-    flex-shrink: 0;
-    padding: 12px 16px;
-    border-top: 1px solid #eef2f6;
-    background: #ffffff;
-}
-
-.clear-gallery-btn {
-    width: 100%;
-    background: #ef4444;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 40px;
-    font-weight: 500;
-    color: white;
+.clear-gallery {
+    padding: 10px 16px;
+    text-align: center;
+    background: #fef2f2;
+    color: #dc2626;
+    font-size: 0.7rem;
     cursor: pointer;
-    transition: 0.2s;
-}
-
-.clear-gallery-btn:hover {
-    background: #dc2626;
-    transform: scale(0.98);
+    flex-shrink: 0;
+    border-top: 1px solid #fee2e2;
 }
 </style>

@@ -1,161 +1,171 @@
 <template>
-    <div class="control-bar">
-        <!-- 模式按钮组 -->
-        <div class="mode-buttons">
+    <div class="controls-section">
+        <!-- 模式切换 -->
+        <div class="mode-tabs">
             <button 
                 v-for="opt in modeOptions" 
                 :key="opt.value"
-                :class="['mode-btn', { active: mode === opt.value }]"
+                :class="['mode-tab', { active: mode === opt.value }]"
                 @click="$emit('mode-change', opt.value)"
             >
-                {{ opt.label }}
+                {{ opt.icon }} {{ opt.label }}
             </button>
         </div>
-
-        <!-- 参数面板 -->
-        <div class="control-panels">
-            <!-- 通用参数区（间距、背景色、透明重置） -->
-            <div class="common-panel">
-                <div class="control-group">
-                    <label>📏 间距</label>
-                    <input type="range" :value="spacing" min="0" max="50" @input="$emit('spacing-change', parseInt($event.target.value))">
-                    <span>{{ spacing }}px</span>
-                </div>
-
-                <div class="control-group">
-                    <label>🎨 背景色</label>
-                    <input type="color" :value="bgColor" @input="onColorChange">
-                    <span class="reset-icon" @click="resetTransparent" title="重置为透明背景">↺</span>
-                </div>
-
-                <div class="control-group">
-                    <label>🎭 蒙版形状</label>
-                    <select :value="maskShape" @change="$emit('update-mask-shape', $event.target.value)">
-                        <option value="none">无</option>
-                        <option value="circle">圆形</option>
-                        <option value="roundRect">圆角矩形</option>
-                    </select>
-                </div>
-
-                <button class="action-btn clear-canvas-btn" @click="$emit('clear-canvas')">🗑️ 清空画布</button>
-
-                <div v-if="maskShape === 'roundRect'" class="control-group">
-                    <label>📏 圆角半径</label>
-                    <input type="number" :value="cornerRadius" min="0" max="100" step="5" @input="$emit('update-corner-radius', parseInt($event.target.value))">
-                    <span>px</span>
-                </div>
-
+        
+        <!-- 通用参数：间距 + 背景 -->
+        <div class="param-group">
+            <div class="param-row">
+                <span class="param-label">间距</span>
+                <input type="range" :value="spacing" min="0" max="50" @input="$emit('spacing-change', parseInt($event.target.value))">
+                <span class="param-value">{{ spacing }}px</span>
             </div>
-
-            <!-- 模式特定参数区 -->
-            <div class="mode-panel">
-                <!-- 自由模式 -->
-                <div v-if="mode === 'free'" class="mode-params">
-                    <div class="control-group">
-                        <label>📐 画布宽度</label>
-                        <input type="number" :value="canvasWidth" min="100" step="10" @input="$emit('canvas-width-change', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="control-group">
-                        <label>📏 画布高度</label>
-                        <input type="number" :value="canvasHeight" min="100" step="10" @input="$emit('canvas-height-change', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="control-group">
-                        <label>🔍 预览最大尺寸</label>
-                        <input type="range" :value="previewMaxSize" min="80" max="320" @input="$emit('update-preview-max-size', parseInt($event.target.value))">
-                        <span>{{ previewMaxSize }}px</span>
-                        <div class="info-tip">仅影响预览，导出可勾选原始尺寸</div>
-                    </div>
-                    <div class="control-group">
-                        <label>📤 导出原始尺寸</label>
-                        <input type="checkbox" :checked="useOriginalSizeInFree" @change="$emit('update-use-original-size', $event.target.checked)">
-                        <div class="info-tip">勾选则按图片原始像素导出</div>
-                    </div>
-                </div>
-
-                <!-- 横向拼接模式 -->
-                <div v-if="mode === 'horizontal'" class="mode-params">
-                    <div class="control-group">
-                        <label>🔧 固定高度</label>
-                        <input type="checkbox" :checked="fixedHeightEnabled" @change="$emit('update-fixed-height-enabled', $event.target.checked)">
-                    </div>
-                    <div class="control-group" v-if="fixedHeightEnabled">
-                        <label>📏 高度(px)</label>
-                        <input type="number" :value="fixedHeight" min="50" step="10" @input="$emit('update-fixed-height', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="info-tip" v-if="!fixedHeightEnabled">✨ 默认自适应高度（图片原始高度）</div>
-                </div>
-
-                <!-- 纵向拼接模式 -->
-                <div v-if="mode === 'vertical'" class="mode-params">
-                    <div class="control-group">
-                        <label>🔧 固定宽度</label>
-                        <input type="checkbox" :checked="fixedWidthEnabled" @change="$emit('update-fixed-width-enabled', $event.target.checked)">
-                    </div>
-                    <div class="control-group" v-if="fixedWidthEnabled">
-                        <label>📏 宽度(px)</label>
-                        <input type="number" :value="fixedWidth" min="50" step="10" @input="$emit('update-fixed-width', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="info-tip" v-if="!fixedWidthEnabled">✨ 默认自适应宽度（图片原始宽度）</div>
-                </div>
-
-                <!-- 网格模式 -->
-                <div v-if="mode === 'grid'" class="mode-params">
-                    <div class="control-group">
-                        <label>📊 行数</label>
-                        <input type="number" :value="gridRows" min="1" max="10" step="1" @input="$emit('update-grid-rows', parseInt($event.target.value))">
-                        <span> 行</span>
-                    </div>
-                    <div class="control-group">
-                        <label>📊 列数</label>
-                        <input type="number" :value="gridCols" min="1" max="10" step="1" @input="$emit('update-grid-cols', parseInt($event.target.value))">
-                        <span> 列</span>
-                    </div>
-                    <div class="control-group">
-                        <label>📦 单元格宽度</label>
-                        <input type="number" :value="cellWidth" min="0" step="10" @input="$emit('update-cell-width', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="control-group">
-                        <label>📦 单元格高度</label>
-                        <input type="number" :value="cellHeight" min="0" step="10" @input="$emit('update-cell-height', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="control-group">
-                        <label>🎨 填充方式</label>
-                        <select :value="fillMode" @change="$emit('update-fill-mode', $event.target.value)">
-                            <option value="contain">contain (保持比例留白)</option>
-                            <option value="cover">cover (裁剪填充)</option>
-                        </select>
-                    </div>
-                    <div class="info-tip" v-if="!cellWidth || !cellHeight">✨ 留空则自动计算单元格大小</div>
-                </div>
-
-                <!-- 瀑布流模式 -->
-                <div v-if="mode === 'masonry'" class="mode-params">
-                    <div class="control-group">
-                        <label>📊 列数</label>
-                        <input type="number" :value="masonryCols" min="1" max="6" step="1" @input="$emit('update-masonry-cols', parseInt($event.target.value))">
-                        <span> 列</span>
-                    </div>
-                    <div class="control-group">
-                        <label>📏 列宽(px)</label>
-                        <input type="number" :value="masonryColumnWidth" min="50" step="10" @input="$emit('update-masonry-column-width', parseInt($event.target.value))">
-                        <span>px</span>
-                    </div>
-                    <div class="info-tip">瀑布流中每张图片宽度固定，高度自适应</div>
+            <div class="param-row">
+                <span class="param-label">背景</span>
+                <div class="bg-controls">
+                    <input type="color" :value="bgColor" @click="onColorPickerClick" @input="onColorChange">
+                    <button class="transparent-btn" :class="{ active: useTransparent }" @click="$emit('toggle-transparent', !useTransparent)">透明</button>
                 </div>
             </div>
+        </div>
+
+        <!-- 高级选项容器（触发器 + 不可见连接区） -->
+        <div class="advanced-container"
+             @mouseenter="handleMouseEnter"
+             @mouseleave="handleMouseLeave">
+            <div class="advanced-trigger" ref="advancedTriggerRef">
+                <span>⚙️ 高级设置</span>
+                <span class="trigger-arrow">›</span>
+            </div>
+            
+            <!-- 不可见连接区域（填补触发器和面板之间的空隙） -->
+            <div class="advanced-gap"></div>
+            
+            <!-- 使用 Teleport 将悬浮面板传送到 body，避免被遮挡 -->
+            <Teleport to="body">
+                <div v-if="showAdvancedPanel" 
+                     ref="advancedPanelRef"
+                     class="advanced-panel-global"
+                     :style="globalPanelStyle"
+                     @mouseenter="handleMouseEnter"
+                     @mouseleave="handleMouseLeave">
+                    <div class="panel-header">
+                        <span>高级设置 - {{ currentModeLabel }}</span>
+                    </div>
+                    <div class="panel-body">
+                        <!-- 自由模式参数 -->
+                        <div v-if="mode === 'free'" class="param-group-inline">
+                            <div class="param-row">
+                                <span class="param-label">画布宽</span>
+                                <input type="number" :value="canvasWidth" @input="$emit('update-canvas-width', parseInt($event.target.value))" min="100" step="10">
+                                <span>px</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">画布高</span>
+                                <input type="number" :value="canvasHeight" @input="$emit('update-canvas-height', parseInt($event.target.value))" min="100" step="10">
+                                <span>px</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 网格模式参数 -->
+                        <div v-if="mode === 'grid'" class="param-group-inline">
+                            <div class="param-row">
+                                <span class="param-label">布局</span>
+                                <select :value="gridLayout" @input="$emit('update-grid-layout', $event.target.value)">
+                                    <option value="grid">自由网格</option>
+                                    <option value="horizontal">横向单行</option>
+                                    <option value="vertical">纵向单列</option>
+                                </select>
+                            </div>
+                            <div v-if="gridLayout === 'grid'" class="param-row">
+                                <span class="param-label">行列</span>
+                                <div class="size-inputs">
+                                    <input type="number" :value="gridRows" @input="$emit('update-grid-rows', parseInt($event.target.value))" min="1">
+                                    <span>×</span>
+                                    <input type="number" :value="gridCols" @input="$emit('update-grid-cols', parseInt($event.target.value))" min="1">
+                                </div>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">单元格</span>
+                                <div class="size-inputs">
+                                    <input type="number" :value="cellWidth" @input="$emit('update-cell-width', parseInt($event.target.value))" min="0" step="10" placeholder="自动">
+                                    <span>×</span>
+                                    <input type="number" :value="cellHeight" @input="$emit('update-cell-height', parseInt($event.target.value))" min="0" step="10" placeholder="自动">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 瀑布流模式参数 -->
+                        <div v-if="mode === 'masonry'" class="param-group-inline">
+                            <div class="param-row">
+                                <span class="param-label">列数</span>
+                                <input type="number" :value="masonryCols" @input="$emit('update-masonry-cols', parseInt($event.target.value))" min="1" max="6">
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">列宽</span>
+                                <input type="number" :value="masonryColumnWidth" @input="$emit('update-masonry-column-width', parseInt($event.target.value))" min="50" step="10">
+                                <span>px</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 预设模式参数 -->
+                        <div v-if="mode === 'preset'" class="param-group-inline">
+                            <div class="preset-templates">
+                                <button 
+                                    v-for="tmpl in presetTemplates" 
+                                    :key="tmpl.id"
+                                    :class="['preset-btn', { active: presetTemplateId === tmpl.id }]"
+                                    @click="$emit('select-preset-template', tmpl.id)"
+                                >
+                                    {{ tmpl.name }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="param-divider"></div>
+                        <div class="param-row">
+                            <span class="param-label">外框</span>
+                            <label class="border-checkbox">
+                                <input type="checkbox" :checked="showOuterBorder" @change="$emit('update-show-outer-border', $event.target.checked)">
+                            </label>
+                        </div>
+                        <div class="param-row">
+                            <span class="param-label">蒙版</span>
+                            <select :value="maskShape" @input="$emit('update-mask-shape', $event.target.value)">
+                                <option value="none">无</option>
+                                <option value="circle">圆形</option>
+                                <option value="roundRect">圆角矩形</option>
+                            </select>
+                        </div>
+                        <div v-if="maskShape === 'roundRect'" class="param-row">
+                            <span class="param-label">圆角</span>
+                            <input type="number" :value="cornerRadius" @input="$emit('update-corner-radius', parseInt($event.target.value))" min="0" step="5">
+                            <span>px</span>
+                        </div>
+                        <div class="param-row">
+                            <span class="param-label">填充</span>
+                            <select :value="fillMode" @input="$emit('update-fill-mode', $event.target.value)">
+                                <option value="contain">contain (留白)</option>
+                                <option value="cover">cover (裁剪)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </Teleport>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="action-buttons">
+            <button class="action-btn clear-btn" @click="$emit('clear-canvas')">清空画布</button>
+            <button class="action-btn export-btn" @click="$emit('export')">导出图片</button>
         </div>
     </div>
 </template>
 
 <script setup>
-defineProps({
-    mode: { type: String, default: 'free' },
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
+
+const props = defineProps({
+    mode: { type: String, default: 'preset' },
     spacing: { type: Number, default: 12 },
     bgColor: { type: String, default: '#ffffff' },
     useTransparent: { type: Boolean, default: true },
@@ -163,198 +173,366 @@ defineProps({
     canvasHeight: { type: Number, default: 600 },
     gridRows: { type: Number, default: 3 },
     gridCols: { type: Number, default: 3 },
+    gridLayout: { type: String, default: 'grid' },
     masonryCols: { type: Number, default: 3 },
-    fixedHeightEnabled: { type: Boolean, default: false },
-    fixedHeight: { type: Number, default: 200 },
-    fixedWidthEnabled: { type: Boolean, default: false },
-    fixedWidth: { type: Number, default: 200 },
+    masonryColumnWidth: { type: Number, default: 360 },
     cellWidth: { type: Number, default: 0 },
     cellHeight: { type: Number, default: 0 },
-    fillMode: { type: String, default: 'contain' },
-    previewMaxSize: { type: Number, default: 160 },
-    useOriginalSizeInFree: { type: Boolean, default: false },
+    fillMode: { type: String, default: 'cover' },
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
-    masonryColumnWidth: { type: Number, default: 360 }
+    presetTemplateId: { type: String, default: 'grid-3x3' },
+    showOuterBorder: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
     'mode-change', 'spacing-change', 'bg-color-change', 'toggle-transparent',
-    'canvas-width-change', 'canvas-height-change', 'export',
-    'update-grid-rows', 'update-grid-cols', 'update-masonry-cols',
-    'update-fixed-height-enabled', 'update-fixed-height',
-    'update-fixed-width-enabled', 'update-fixed-width',
+    'update-canvas-width', 'update-canvas-height',
+    'update-grid-rows', 'update-grid-cols', 'update-grid-layout',
+    'update-masonry-cols', 'update-masonry-column-width',
     'update-cell-width', 'update-cell-height', 'update-fill-mode',
-    'update-preview-max-size', 'update-use-original-size',
-    'update-mask-shape', 'update-corner-radius', 'clear-canvas','update-masonry-column-width'
+    'update-mask-shape', 'update-corner-radius',
+    'select-preset-template', 'clear-canvas', 'export', 'update-show-outer-border'
 ]);
 
-const onColorChange = (e) => {
-    emit('bg-color-change', e.target.value);
-    emit('toggle-transparent', false);
-};
-
-const resetTransparent = () => {
-    emit('toggle-transparent', true);
-    emit('bg-color-change', '#ffffff');
-};
-
 const modeOptions = [
-    { value: 'free', label: '✨ 自由拖拽' },
-    { value: 'horizontal', label: '🔄 横向拼接' },
-    { value: 'vertical', label: '📐 纵向拼接' },
-    { value: 'grid', label: '🔲 网格模式' },
-    { value: 'masonry', label: '🏞️ 瀑布流模式' }
+    { value: 'preset', label: '预设', icon: '🎨' },
+    { value: 'free', label: '自由', icon: '✨' },
+    { value: 'grid', label: '网格', icon: '🔲' },
+    { value: 'masonry', label: '瀑布流', icon: '🏞️' }
 ];
+
+const presetTemplates = [
+    { id: 'grid-3x3', name: '九宫格' },
+    { id: 'grid-2x2', name: '四宫格' },
+    { id: 'grid-1x2', name: '横向双拼' },
+    { id: 'grid-2x1', name: '纵向双拼' },
+    { id: 'poster-simple', name: '纯文字海报' }
+];
+
+const currentModeLabel = computed(() => {
+    const opt = modeOptions.find(o => o.value === props.mode);
+    return opt ? opt.label : '预设';
+});
+
+// 高级面板控制
+const showAdvancedPanel = ref(false);
+const advancedTriggerRef = ref(null);
+const advancedPanelRef = ref(null);
+const globalPanelStyle = ref({});
+let hideTimeout = null;
+
+const handleMouseEnter = () => {
+    if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+    }
+    showAdvancedPanel.value = true;
+    adjustPanelPosition();
+};
+
+const handleMouseLeave = () => {
+    hideTimeout = setTimeout(() => {
+        showAdvancedPanel.value = false;
+    }, 200);
+};
+
+const adjustPanelPosition = async () => {
+    await nextTick();
+    if (!advancedTriggerRef.value || !advancedPanelRef.value) return;
+    const triggerRect = advancedTriggerRef.value.getBoundingClientRect();
+    const panelRect = advancedPanelRef.value.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    
+    let top = triggerRect.top;
+    let left = triggerRect.right + 8;
+    
+    if (triggerRect.bottom + panelRect.height > viewportHeight - 20) {
+        top = triggerRect.bottom - panelRect.height;
+    }
+    
+    if (triggerRect.right + panelRect.width + 8 > window.innerWidth) {
+        left = triggerRect.left - panelRect.width - 8;
+    }
+    
+    globalPanelStyle.value = {
+        position: 'fixed',
+        left: `${left}px`,
+        top: `${top}px`,
+        width: '320px',
+        zIndex: 10000
+    };
+};
+
+const handleResize = () => {
+    if (showAdvancedPanel.value) {
+        adjustPanelPosition();
+    }
+};
+
+watch(showAdvancedPanel, (newVal) => {
+    if (newVal) {
+        adjustPanelPosition();
+    }
+});
+
+onMounted(() => {
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleResize, true);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+    window.removeEventListener('scroll', handleResize, true);
+    if (hideTimeout) clearTimeout(hideTimeout);
+});
+
+// 背景色处理
+const onColorPickerClick = () => {
+    if (props.useTransparent) {
+        emit('toggle-transparent', false);
+    }
+};
+
+const onColorChange = (e) => {
+    if (props.useTransparent) {
+        emit('toggle-transparent', false);
+    }
+    emit('bg-color-change', e.target.value);
+};
 </script>
 
 <style scoped>
-/* 复用之前的样式，此处略（实际使用时需包含完整样式） */
-.control-bar {
-    background: #ffffff;
-    margin: 5px 20px 20px 20px;
-    border-radius: 28px;
-    padding: 16px 24px;
-    border: 1px solid #e8ecf0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+.controls-section {
+    flex-shrink: 0;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
+    overflow: visible;
 }
-.mode-buttons {
+
+.mode-tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: space-between;
-    border-bottom: 1px solid #eef2f6;
-    padding-bottom: 12px;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 12px;
 }
-.mode-btn {
+.mode-tab {
     flex: 1;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    padding: 8px 12px;
-    border-radius: 40px;
-    font-size: 0.8rem;
+    padding: 8px 0;
+    font-size: 0.75rem;
     font-weight: 500;
-    color: #475569;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
-    text-align: center;
-    white-space: nowrap;
 }
-.mode-btn.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+.mode-tab.active {
+    background: #ffffff;
+    color: #3b82f6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-.mode-btn:hover:not(.active) {
-    background: #eef2ff;
-    border-color: #cbd5e1;
-}
-.control-panels {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    justify-content: space-between;
-}
-.common-panel,
-.mode-panel {
+
+.param-group {
     background: #f8fafc;
-    border-radius: 20px;
-    padding: 12px 16px;
-    border: 1px solid #e2e8f0;
-    flex: 1;
-    min-width: 200px;
+    border-radius: 12px;
+    padding: 10px 12px;
 }
-.common-panel {
+.param-row {
     display: flex;
+    align-items: center;
+    gap: 10px;
     flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
 }
-.mode-panel {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
+.param-row + .param-row {
+    margin-top: 10px;
 }
-.mode-params {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-    width: 100%;
+.param-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #475569;
+    width: 48px;
 }
-.control-group {
+.bg-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #ffffff;
+}
+.transparent-btn {
     padding: 4px 12px;
-    border-radius: 48px;
+    font-size: 0.7rem;
+    background: #e2e8f0;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+}
+.transparent-btn.active {
+    background: #3b82f6;
+    color: white;
+}
+input[type="range"] {
+    flex: 1;
+    min-width: 100px;
+}
+input[type="color"] {
+    width: 32px;
+    height: 32px;
+    padding: 2px;
+    border-radius: 8px;
     border: 1px solid #e2e8f0;
 }
-.control-group label {
-    font-weight: 500;
-    font-size: 0.75rem;
-    color: #334155;
+
+.advanced-container {
+    position: relative;
 }
-select, input {
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    padding: 4px 8px;
-    border-radius: 32px;
-    color: #1e293b;
-    font-size: 0.75rem;
+
+.advanced-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    border-radius: 12px;
     cursor: pointer;
+    font-size: 0.75rem;
+    color: #475569;
+    transition: all 0.2s;
+}
+.advanced-trigger:hover {
+    background: #e2e8f0;
+}
+.trigger-arrow {
+    font-size: 1rem;
+    color: #94a3b8;
+}
+
+.advanced-gap {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: transparent;
+    pointer-events: auto;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
 }
 .action-btn {
-    background: #3b82f6;
-    border: none;
-    padding: 6px 16px;
-    border-radius: 40px;
+    flex: 1;
+    padding: 8px 0;
+    font-size: 0.75rem;
     font-weight: 500;
-    font-size: 0.8rem;
-    color: white;
+    border: none;
+    border-radius: 12px;
     cursor: pointer;
-    transition: 0.2s;
+    transition: all 0.2s;
 }
-.action-btn:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
+.clear-btn {
+    background: #f1f5f9;
+    color: #475569;
 }
-.download-btn {
+.clear-btn:hover {
+    background: #e2e8f0;
+}
+.export-btn {
     background: #10b981;
+    color: white;
 }
-.download-btn:hover {
+.export-btn:hover {
     background: #059669;
 }
-.info-tip {
+
+.size-inputs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.size-inputs input {
+    width: 65px;
+}
+input, select {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 6px 10px;
+    border-radius: 8px;
     font-size: 0.7rem;
-    color: #6b7280;
-    margin-left: 4px;
+    color: #1e293b;
 }
-.reset-icon {
+.preset-templates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.preset-btn {
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 20px;
     cursor: pointer;
-    font-size: 1.2rem;
-    padding: 0 4px;
-    user-select: none;
-    opacity: 0.7;
-    transition: 0.1s;
-    line-height: 1;
 }
-.reset-icon:hover {
-    opacity: 1;
-    transform: scale(1.1);
+.preset-btn.active {
+    background: #3b82f6;
+    color: white;
 }
-@media (max-width: 800px) {
-    .control-panels {
-        flex-direction: column;
-    }
-    .mode-btn {
-        font-size: 0.7rem;
-        padding: 6px 8px;
-    }
+.param-divider {
+    height: 1px;
+    background: #eef2f6;
+    margin: 16px 0;
+}
+.param-group-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* 全局悬浮面板样式 */
+.advanced-panel-global {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 35px -8px rgba(0, 0, 0, 0.2);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+.panel-header {
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #eef2f6;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+.panel-body {
+    padding: 16px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.border-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    color: #475569;
+}
+.border-checkbox input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+}
+.info-tip {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    margin-left: 4px;
 }
 </style>
