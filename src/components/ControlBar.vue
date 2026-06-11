@@ -204,11 +204,18 @@ const modeOptions = [
 ];
 
 const presetTemplates = [
-    { id: 'grid-3x3', name: '九宫格' },
-    { id: 'grid-2x2', name: '四宫格' },
-    { id: 'grid-1x2', name: '横向双拼' },
-    { id: 'grid-2x1', name: '纵向双拼' },
-    { id: 'poster-simple', name: '纯文字海报' }
+    // 图片拼接模板
+    { id: 'grid-3x3', name: '九宫格', type: 'grid', rows: 3, cols: 3 },
+    { id: 'grid-2x2', name: '四宫格', type: 'grid', rows: 2, cols: 2 },
+    { id: 'grid-1x2', name: '横向双拼', type: 'grid', rows: 1, cols: 2 },
+    { id: 'grid-2x1', name: '纵向双拼', type: 'grid', rows: 2, cols: 1 },
+    // 图文海报模板
+    { id: 'poster-classic', name: '经典九宫格', type: 'poster', layout: 'grid-3x3', cells: 9, textPosition: 'bottom' },
+    { id: 'poster-four', name: '四宫格海报', type: 'poster', layout: 'grid-2x2', cells: 4, textPosition: 'bottom' },
+    { id: 'poster-big-small', name: '杂志风', type: 'poster', layout: 'big-small', cells: 3, textPosition: 'bottom' },
+    { id: 'poster-top-bottom', name: '上下构图', type: 'poster', layout: 'top-bottom', cells: 3, textPosition: 'bottom' },
+    { id: 'poster-banner', name: '横幅海报', type: 'poster', layout: 'banner', cells: 1, textPosition: 'below' },
+    { id: 'poster-movie', name: '电影海报', type: 'poster', layout: 'movie', cells: 1, textPosition: 'center' }
 ];
 
 const currentModeLabel = computed(() => {

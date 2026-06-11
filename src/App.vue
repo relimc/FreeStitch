@@ -270,19 +270,20 @@ const addToCanvas = async (imageId) => {
     if (!img) return;
     
     if (mode.value === 'preset') {
-        if (!presetCanvasRef.value) {
-            alert('画布组件未就绪，请稍后再试');
-            return;
-        }
-        
         if (selectedPresetCellIndex.value !== -1) {
-            presetCanvasRef.value.addImageToSelectedCell(img.id, img.dataURL);
+            // 优先使用海报模式方法
+            if (presetCanvasRef.value.addImageToSelectedPosterCell) {
+                presetCanvasRef.value.addImageToSelectedPosterCell(img.id, img.dataURL);
+            } else {
+                presetCanvasRef.value.addImageToSelectedCell(img.id, img.dataURL);
+            }
         } else {
-            presetCanvasRef.value.addImageToEmptyCell(img.id, img.dataURL);
+            if (presetCanvasRef.value.addImageToEmptyPosterCell) {
+                presetCanvasRef.value.addImageToEmptyPosterCell(img.id, img.dataURL);
+            } else {
+                presetCanvasRef.value.addImageToEmptyCell(img.id, img.dataURL);
+            }
         }
-        await nextTick();
-        updateResolution();
-        return;
     }
     
     const alreadyInCanvas = canvasImages.value.some(i => i.id === imageId);
