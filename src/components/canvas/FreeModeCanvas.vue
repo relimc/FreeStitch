@@ -51,15 +51,26 @@ const canvasHeightRef = computed(() => props.canvasHeight);
 
 const { imagePositions, startDrag, clampAllPositions } = useCanvasDrag(canvasWidthRef, canvasHeightRef, getImageStyle);
 
-const freeCanvasStyle = computed(() => ({
-    backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
-    width: `${props.canvasWidth}px`,
-    height: `${props.canvasHeight}px`,
-    position: 'relative',
-    overflow: 'visible',
-    margin: 'auto',
-    boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${props.bgColor}` : '0 0 0 2px #cbd5e1'
-}));
+const freeCanvasStyle = computed(() => {
+    // 确定边框颜色：透明模式下边框透明，否则使用背景色
+    let borderColor = 'transparent';
+    if (props.showOuterBorder && !props.useTransparent) {
+        borderColor = props.bgColor;
+    } else if (props.showOuterBorder && props.useTransparent) {
+        borderColor = 'transparent';
+    }
+    
+    return {
+        backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
+        width: `${props.canvasWidth}px`,
+        height: `${props.canvasHeight}px`,
+        position: 'relative',
+        overflow: 'visible',
+        margin: 'auto',
+        boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${borderColor}` : '0 0 0 2px #cbd5e1',
+        transition: 'box-shadow 0.2s ease'
+    };
+});
 
 const getCardStyle = (img) => {
     const pos = imagePositions.value[img.id] || { x: 20, y: 20 };
@@ -75,6 +86,16 @@ const getCardStyle = (img) => {
         transition: 'none'
     };
 };
+
+const getResolution = () => {
+    // 自由模式的分辨率就是画布设置的宽高加上外边框
+    const borderSize = props.showOuterBorder ? props.spacing : 0;
+    return {
+        width: props.canvasWidth + borderSize * 2,
+        height: props.canvasHeight + borderSize * 2
+    };
+};
+
 
 watch(() => props.images, (newImages) => {
     localImages.value = newImages.map(img => ({ ...img }));
@@ -141,7 +162,7 @@ const exportImage = async (useTransparent) => {
     return canvas.toDataURL('image/png');
 };
 
-defineExpose({ exportImage });
+defineExpose({ exportImage, getResolution });
 
 onUnmounted(() => {
     document.removeEventListener('mousemove', useCanvasDrag.onDragMove);

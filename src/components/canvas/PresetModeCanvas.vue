@@ -1,18 +1,18 @@
 <template>
     <div class="preset-canvas">
-        <!-- 图片拼接模板 -->
+        <!-- 图片拼接模板（九宫格等） -->
         <div v-if="!isPoster" class="preset-grid" :style="presetGridStyle">
-            <div v-for="(cell, idx) in presetCells" :key="idx" 
+            <div v-for="(cell, idx) in modelValue" :key="idx" 
                 class="preset-cell" 
                 :class="{ 'cell-selected': selectedCellIndex === idx }"
                 :style="getPresetCellStyle()"
                 @click="selectCell(idx)">
-                <img v-if="cell.imageData" :src="cell.imageData" :style="getPresetCellImageStyle()">
+                <img v-if="cell && cell.imageData" :src="cell.imageData" :style="getPresetCellImageStyle()">
                 <div v-else class="preset-cell-placeholder">
                     <span>+</span>
                     <span class="placeholder-text">点击选中</span>
                 </div>
-                <div v-if="cell.imageData" class="preset-cell-remove" @click.stop="removeCellImage(idx)">✖</div>
+                <div v-if="cell && cell.imageData" class="preset-cell-remove" @click.stop="removeCellImage(idx)">✖</div>
             </div>
         </div>
 
@@ -34,10 +34,11 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, inject } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { loadImage } from './utils/canvasHelpers.js';
 
 const props = defineProps({
+    modelValue: { type: Array, default: () => [] },
     images: { type: Array, default: () => [] },
     spacing: { type: Number, default: 12 },
     bgColor: { type: String, default: '#ffffff' },
@@ -49,16 +50,19 @@ const props = defineProps({
     posterTextPosition: { type: String, default: 'bottom-center' },
     posterTextColor: { type: String, default: '#ffffff' },
     posterFontSize: { type: Number, default: 32 },
-    showOuterBorder: { type: Boolean, default: false }
+    showOuterBorder: { type: Boolean, default: false },
+    maskShape: { type: String, default: 'none' },
+    cornerRadius: { type: Number, default: 20 },
+    cellWidth: { type: Number, default: 300 },
+    cellHeight: { type: Number, default: 185 }
 });
 
-const emit = defineEmits(['update:presetCells', 'select-cell']);
+const emit = defineEmits(['update:modelValue', 'select-cell']);
 
-const galleryImages = inject('galleryImages', ref([]));
-const presetCells = ref([]);
 const presetTemplateConfig = ref(null);
 const selectedCellIndex = ref(-1);
 
+// 预设模板定义
 const presetTemplates = [
     { id: 'grid-3x3', name: '九宫格', rows: 3, cols: 3, type: 'grid' },
     { id: 'grid-2x2', name: '四宫格', rows: 2, cols: 2, type: 'grid' },
@@ -73,7 +77,6 @@ const posterTemplates = [
 ];
 
 const isPoster = computed(() => props.presetTemplateId?.startsWith('poster'));
-
 const posterLayout = computed(() => {
     const template = posterTemplates.find(t => t.id === props.presetTemplateId);
     return template?.layout || 'simple';
@@ -126,7 +129,8 @@ const getPresetCellStyle = () => ({
     overflow: 'hidden',
     aspectRatio: '1 / 1',
     width: '100%',
-    height: '100%'
+    height: '100%',
+    transition: 'all 0.2s ease'
 });
 
 const getPresetCellImageStyle = () => {
@@ -143,15 +147,15 @@ const initPresetTemplate = (templateId) => {
     presetTemplateConfig.value = template;
     
     if (template.type === 'poster') {
-        presetCells.value = [];
+        emit('update:modelValue', []);
     } else if (template.rows && template.cols) {
         const cells = [];
         for (let i = 0; i < template.rows * template.cols; i++) {
             cells.push({ imageId: null, imageData: null });
         }
-        presetCells.value = cells;
+        emit('update:modelValue', cells);
     }
-    emit('update:presetCells', presetCells.value);
+    selectedCellIndex.value = -1;
 };
 
 const selectCell = (idx) => {
@@ -160,40 +164,59 @@ const selectCell = (idx) => {
 };
 
 const removeCellImage = (idx) => {
-    const newCells = [...presetCells.value];
+    const newCells = [...props.modelValue];
     newCells[idx] = { ...newCells[idx], imageId: null, imageData: null };
-    presetCells.value = newCells;
-    emit('update:presetCells', presetCells.value);
+    emit('update:modelValue', newCells);
     if (selectedCellIndex.value === idx) {
         selectedCellIndex.value = -1;
     }
 };
 
+// 添加到选中的格子
 const addImageToSelectedCell = (imageId, imageData) => {
     if (selectedCellIndex.value === -1) {
         alert('请先点击画布中的一个格子');
         return false;
     }
-    const newCells = [...presetCells.value];
+    const newCells = [...props.modelValue];
+    if (!newCells[selectedCellIndex.value]) {
+        newCells[selectedCellIndex.value] = {};
+    }
     newCells[selectedCellIndex.value] = {
         ...newCells[selectedCellIndex.value],
         imageId: imageId,
         imageData: imageData
     };
-    presetCells.value = newCells;
-    emit('update:presetCells', presetCells.value);
+    emit('update:modelValue', newCells);
     selectedCellIndex.value = -1;
     return true;
 };
 
+// 自动添加到第一个空余格子
+const addImageToEmptyCell = (imageId, imageData) => {
+    const emptyIndex = props.modelValue.findIndex(cell => !cell || !cell.imageData);
+    if (emptyIndex === -1) {
+        alert('所有格子都已填满，请先移除一些图片');
+        return false;
+    }
+    
+    const newCells = [...props.modelValue];
+    if (!newCells[emptyIndex]) {
+        newCells[emptyIndex] = {};
+    }
+    newCells[emptyIndex] = {
+        ...newCells[emptyIndex],
+        imageId: imageId,
+        imageData: imageData
+    };
+    emit('update:modelValue', newCells);
+    return true;
+};
+
 // 导出图片
-// 确保 exportImage 是 async 函数，并且正确返回
 const exportImage = async (useTransparent) => {
     const config = presetTemplateConfig.value;
-    if (!config) {
-        console.warn('没有模板配置');
-        return null;
-    }
+    if (!config) return null;
     
     // 海报模板导出
     if (config.type === 'poster') {
@@ -202,12 +225,8 @@ const exportImage = async (useTransparent) => {
         canvas.height = 600;
         const ctx = canvas.getContext('2d');
         
-        if (useTransparent) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        } else {
-            ctx.fillStyle = props.bgColor;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
+        if (useTransparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
         gradient.addColorStop(0, '#667eea');
@@ -243,20 +262,14 @@ const exportImage = async (useTransparent) => {
     canvas.height = Math.max(1, Math.ceil(canvasHeight));
     const ctx = canvas.getContext('2d');
     
-    // 绘制背景
-    if (useTransparent) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    } else {
-        ctx.fillStyle = props.bgColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    if (useTransparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     
-    // 偏移绘制内容
     ctx.save();
     ctx.translate(borderSize, borderSize);
     
-    for (let i = 0; i < presetCells.value.length; i++) {
-        const cell = presetCells.value[i];
+    for (let i = 0; i < props.modelValue.length; i++) {
+        const cell = props.modelValue[i];
         if (cell && cell.imageData) {
             try {
                 const img = await loadImage(cell.imageData);
@@ -269,7 +282,39 @@ const exportImage = async (useTransparent) => {
                 const dh = img.height * scale;
                 const dx = x + (cellW - dw) / 2;
                 const dy = y + (cellH - dh) / 2;
+                
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(x, y, cellW, cellH);
+                ctx.clip();
+                
+                if (props.maskShape !== 'none') {
+                    if (props.maskShape === 'circle') {
+                        const centerX = dx + dw / 2;
+                        const centerY = dy + dh / 2;
+                        const radius = Math.min(dw, dh) / 2;
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                        ctx.clip();
+                    } else if (props.maskShape === 'roundRect') {
+                        const r = Math.min(props.cornerRadius, Math.min(dw, dh) / 2);
+                        ctx.beginPath();
+                        ctx.moveTo(dx + r, dy);
+                        ctx.lineTo(dx + dw - r, dy);
+                        ctx.quadraticCurveTo(dx + dw, dy, dx + dw, dy + r);
+                        ctx.lineTo(dx + dw, dy + dh - r);
+                        ctx.quadraticCurveTo(dx + dw, dy + dh, dx + dw - r, dy + dh);
+                        ctx.lineTo(dx + r, dy + dh);
+                        ctx.quadraticCurveTo(dx, dy + dh, dx, dy + dh - r);
+                        ctx.lineTo(dx, dy + r);
+                        ctx.quadraticCurveTo(dx, dy, dx + r, dy);
+                        ctx.closePath();
+                        ctx.clip();
+                    }
+                }
+                
                 ctx.drawImage(img, dx, dy, dw, dh);
+                ctx.restore();
             } catch (err) {
                 console.warn('绘制图片失败:', err);
             }
@@ -280,6 +325,36 @@ const exportImage = async (useTransparent) => {
     return canvas.toDataURL('image/png');
 };
 
+// 获取分辨率
+const getResolution = () => {
+    const config = presetTemplateConfig.value;
+    if (!config) return { width: 0, height: 0 };
+    
+    // 海报模板
+    if (config.type === 'poster') {
+        return { width: 800, height: 600 };
+    }
+    
+    // 网格模板
+    const cols = config.cols;
+    const rows = config.rows;
+    
+    // 使用用户设置的单元格尺寸，如果没有则使用默认值 300
+    let cellW = props.cellWidth || 300;
+    let cellH = props.cellHeight || 185;
+    
+    // 注意：preset模式下的单元格尺寸应该从 props 获取
+    // 但您的 props 中没有 cellWidth/cellHeight，需要添加
+    const originalWidth = cols * cellW + (cols - 1) * props.spacing;
+    const originalHeight = rows * cellH + (rows - 1) * props.spacing;
+    const borderSize = props.showOuterBorder ? props.spacing : 0;
+    
+    return {
+        width: originalWidth + borderSize * 2,
+        height: originalHeight + borderSize * 2
+    };
+};
+
 watch(() => props.presetTemplateId, (newId) => {
     if (newId) {
         initPresetTemplate(newId);
@@ -287,7 +362,12 @@ watch(() => props.presetTemplateId, (newId) => {
     }
 }, { immediate: true });
 
-defineExpose({ exportImage, addImageToSelectedCell });
+defineExpose({ 
+    exportImage, 
+    getResolution,
+    addImageToSelectedCell, 
+    addImageToEmptyCell 
+});
 </script>
 
 <style scoped>

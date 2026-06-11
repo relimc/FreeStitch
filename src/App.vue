@@ -101,6 +101,7 @@
                 <GridModeCanvas 
                     v-else-if="mode === 'grid'"
                     ref="gridCanvasRef"
+                    @render-complete="updateResolution"
                     :images="canvasImages"
                     :spacing="spacing"
                     :bgColor="bgColor"
@@ -139,6 +140,9 @@
                 <PresetModeCanvas 
                     v-else-if="mode === 'preset'"
                     ref="presetCanvasRef"
+                    v-model="presetCells"
+                    :cellWidth="cellWidth"
+                    :cellHeight="cellHeight"
                     :images="canvasImages"
                     :spacing="spacing"
                     :bgColor="bgColor"
@@ -146,16 +150,21 @@
                     :fillMode="fillMode"
                     :presetTemplateId="presetTemplateId"
                     :showOuterBorder="showOuterBorder"
-                    @update:presetCells="handlePresetCellsUpdate"
+                    :maskShape="maskShape"
+                    :cornerRadius="cornerRadius"
                     @select-cell="setSelectedPresetCell"
                 />
+            </div>
+            <!-- 分辨率显示浮层 -->
+            <div class="resolution-badge" v-if="currentResolution.width > 0">
+                {{ currentResolution.width }} × {{ currentResolution.height }}
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, provide, onMounted, onUnmounted, watch } from 'vue';
+import { ref, provide, onMounted, onUnmounted, watch, nextTick, computed } from 'vue';
 import ControlBar from './components/ControlBar.vue';
 import FreeModeCanvas from './components/canvas/FreeModeCanvas.vue';
 import GridModeCanvas from './components/canvas/GridModeCanvas.vue';
@@ -177,14 +186,15 @@ const gridCols = ref(3);
 const gridLayout = ref('grid');
 const masonryCols = ref(3);
 const masonryColumnWidth = ref(360);
-const cellWidth = ref(0);
-const cellHeight = ref(0);
+const cellWidth = ref(300);
+const cellHeight = ref(185);
 const fillMode = ref('cover');
 const maskShape = ref('none');
 const cornerRadius = ref(20);
 const presetTemplateId = ref('grid-3x3');
 const presetCells = ref([]);
 const showOuterBorder = ref(false);
+const currentResolution = ref({ width: 0, height: 0 });
 let nextId = 1;
 
 // 画布组件的 ref
@@ -194,12 +204,33 @@ const masonryCanvasRef = ref(null);
 const presetCanvasRef = ref(null);
 const selectedPresetCellIndex = ref(-1);
 
+// 当前活动画布组件的 ref
+const activeCanvasRef = computed(() => {
+    if (mode.value === 'free') return freeCanvasRef.value;
+    if (mode.value === 'grid') return gridCanvasRef.value;
+    if (mode.value === 'masonry') return masonryCanvasRef.value;
+    if (mode.value === 'preset') return presetCanvasRef.value;
+    return null;
+});
+
 // 提供图库数据
 provide('galleryImages', galleryImages);
 
 // 设置当前选中的预设格子
 const setSelectedPresetCell = (index) => {
     selectedPresetCellIndex.value = index;
+};
+
+// 更新分辨率
+const updateResolution = async () => {
+    await nextTick();
+    const canvasRef = activeCanvasRef.value;
+    if (!canvasRef || typeof canvasRef.getResolution !== 'function') return;
+    
+    const resolution = canvasRef.getResolution(useTransparent.value);
+    if (resolution && resolution.width > 0 && resolution.height > 0) {
+        currentResolution.value = resolution;
+    }
 };
 
 // 图片上传
@@ -231,24 +262,29 @@ const handleRemoveImage = (id) => {
     galleryImages.value = galleryImages.value.filter(img => img.id !== id);
     selectedImageIds.value = selectedImageIds.value.filter(iid => iid !== id);
     canvasImages.value = canvasImages.value.filter(img => img.id !== id);
+    nextTick(() => updateResolution());
 };
 
-const addToCanvas = (imageId) => {
+const addToCanvas = async (imageId) => {
     const img = galleryImages.value.find(i => i.id === imageId);
     if (!img) return;
     
     if (mode.value === 'preset') {
-        // 预设模式：通过方法添加图片到选中的格子
-        if (presetCanvasRef.value && presetCanvasRef.value.addImageToSelectedCell) {
-            const success = presetCanvasRef.value.addImageToSelectedCell(img.id, img.dataURL);
-            if (!success) {
-                alert('请先点击画布中的一个格子');
-            }
+        if (!presetCanvasRef.value) {
+            alert('画布组件未就绪，请稍后再试');
+            return;
         }
+        
+        if (selectedPresetCellIndex.value !== -1) {
+            presetCanvasRef.value.addImageToSelectedCell(img.id, img.dataURL);
+        } else {
+            presetCanvasRef.value.addImageToEmptyCell(img.id, img.dataURL);
+        }
+        await nextTick();
+        updateResolution();
         return;
     }
     
-    // 其他模式的原有逻辑
     const alreadyInCanvas = canvasImages.value.some(i => i.id === imageId);
     if (alreadyInCanvas) {
         canvasImages.value = canvasImages.value.filter(i => i.id !== imageId);
@@ -259,36 +295,35 @@ const addToCanvas = (imageId) => {
             selectedImageIds.value.push(imageId);
         }
     }
+    await nextTick();
+    updateResolution();
 };
 
 const removeFromCanvas = (imageId) => {
     canvasImages.value = canvasImages.value.filter(img => img.id !== imageId);
     selectedImageIds.value = selectedImageIds.value.filter(id => id !== imageId);
+    nextTick(() => updateResolution());
 };
 
 const handleCanvasImagesUpdate = (newImages) => {
     if (JSON.stringify(canvasImages.value.map(i => i.id)) !== JSON.stringify(newImages.map(i => i.id))) {
         canvasImages.value = newImages;
         selectedImageIds.value = canvasImages.value.map(img => img.id);
+        nextTick(() => updateResolution());
     }
-};
-
-const handlePresetCellsUpdate = (cells) => {
-    presetCells.value = cells;
 };
 
 const clearCanvas = () => {
     if (mode.value === 'preset') {
         if (presetCanvasRef.value) {
-            // 清空所有格子
             const newCells = presetCells.value.map(cell => ({ ...cell, imageId: null, imageData: null }));
             presetCells.value = newCells;
-            presetCanvasRef.value?.$emit('update:presetCells', newCells);
         }
     } else {
         canvasImages.value = [];
         selectedImageIds.value = [];
     }
+    nextTick(() => updateResolution());
 };
 
 const clearGallery = () => {
@@ -297,81 +332,54 @@ const clearGallery = () => {
     canvasImages.value = [];
     selectedImageIds.value = [];
     presetCells.value = [];
+    nextTick(() => updateResolution());
 };
 
 const handleExport = async () => {
+    const canvasRef = activeCanvasRef.value;
+    if (!canvasRef || typeof canvasRef.exportImage !== 'function') {
+        alert('画布组件未就绪');
+        return;
+    }
+    
     if (mode.value === 'preset') {
-        const hasImages = presetCells.value.some(cell => cell.imageId !== null);
+        const hasImages = presetCells.value.some(cell => cell && cell.imageId);
         if (!hasImages) {
             alert('请先填充预设模板的图片');
             return;
         }
-        if (presetCanvasRef.value) {
-            const dataURL = await presetCanvasRef.value.exportImage(useTransparent.value);
-            if (dataURL) {
-                const link = document.createElement('a');
-                link.download = `stitch_${mode.value}_${Date.now()}.png`;
-                link.href = dataURL;
-                link.click();
-            }
-        }
+    } else if (canvasImages.value.length === 0 && mode.value !== 'free') {
+        alert('请先添加图片到画布');
         return;
     }
     
-    if (mode.value === 'free') {
-        if (canvasImages.value.length === 0) {
-            alert('请先添加图片到画布');
-            return;
-        }
-        if (freeCanvasRef.value) {
-            const dataURL = await freeCanvasRef.value.exportImage(useTransparent.value);
-            if (dataURL) {
-                const link = document.createElement('a');
-                link.download = `stitch_${mode.value}_${Date.now()}.png`;
-                link.href = dataURL;
-                link.click();
-            }
-        }
-        return;
-    }
-    
-    if (mode.value === 'grid') {
-        if (canvasImages.value.length === 0) {
-            alert('请先添加图片到画布');
-            return;
-        }
-        if (gridCanvasRef.value) {
-            const dataURL = await gridCanvasRef.value.exportImage(useTransparent.value);
-            if (dataURL) {
-                const link = document.createElement('a');
-                link.download = `stitch_${mode.value}_${Date.now()}.png`;
-                link.href = dataURL;
-                link.click();
-            }
-        }
-        return;
-    }
-    
-    if (mode.value === 'masonry') {
-        if (canvasImages.value.length === 0) {
-            alert('请先添加图片到画布');
-            return;
-        }
-        if (masonryCanvasRef.value) {
-            const dataURL = await masonryCanvasRef.value.exportImage(useTransparent.value);
-            if (dataURL) {
-                const link = document.createElement('a');
-                link.download = `stitch_${mode.value}_${Date.now()}.png`;
-                link.href = dataURL;
-                link.click();
-            }
-        }
-        return;
+    const dataURL = await canvasRef.exportImage(useTransparent.value);
+    if (dataURL) {
+        const link = document.createElement('a');
+        link.download = `stitch_${mode.value}_${Date.now()}.png`;
+        link.href = dataURL;
+        link.click();
     }
 };
 
+// ========== 唯一的一个 watch，监听所有参数变化 ==========
+watch([mode, spacing, bgColor, useTransparent, canvasImages, 
+        gridRows, gridCols, gridLayout, masonryCols, masonryColumnWidth,
+        cellWidth, cellHeight, fillMode, presetTemplateId, presetCells,
+        showOuterBorder, maskShape, cornerRadius], () => {
+    nextTick(() => updateResolution());
+}, { deep: true, immediate: true });
+
+// ========== 监听模式切换，确保画布组件完全渲染 ==========
+watch(() => mode.value, async () => {
+    await nextTick();
+    setTimeout(() => {
+        updateResolution();
+    }, 50);
+});
+
 const handleBeforeUnload = (e) => {
-    if (galleryImages.value.length > 0 || canvasImages.value.length > 0 || presetCells.value.some(c => c.imageId)) {
+    if (galleryImages.value.length > 0 || canvasImages.value.length > 0 || presetCells.value.some(c => c && c.imageId)) {
         e.preventDefault();
         e.returnValue = '';
     }
@@ -540,10 +548,25 @@ onUnmounted(() => {
     flex-direction: column;
     padding: 20px;
     overflow: hidden;
+    position: relative;
 }
 .canvas-wrapper {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+}
+.resolution-badge {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    color: #e2e8f0;
+    font-size: 0.7rem;
+    font-family: monospace;
+    padding: 4px 10px;
+    border-radius: 20px;
+    pointer-events: none;
+    z-index: 10;
 }
 </style>

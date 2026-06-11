@@ -67,7 +67,6 @@ const renderCanvas = async () => {
     const originalWidth = cols * fixedWidth + (cols - 1) * props.spacing;
     const originalHeight = Math.max(...colHeights) - props.spacing;
     
-    // 外边框：上下左右都加
     const borderSize = props.showOuterBorder ? props.spacing : 0;
     const canvasWidth = originalWidth + borderSize * 2;
     const canvasHeight = originalHeight + borderSize * 2;
@@ -84,7 +83,34 @@ const renderCanvas = async () => {
     ctx.translate(borderSize, borderSize);
     
     for (const p of positions) {
+        ctx.save();
+        // 应用蒙版
+        if (props.maskShape !== 'none') {
+            if (props.maskShape === 'circle') {
+                const centerX = p.x + p.drawW / 2;
+                const centerY = p.y + p.drawH / 2;
+                const radius = Math.min(p.drawW, p.drawH) / 2;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.clip();
+            } else if (props.maskShape === 'roundRect') {
+                const r = props.cornerRadius;
+                ctx.beginPath();
+                ctx.moveTo(p.x + r, p.y);
+                ctx.lineTo(p.x + p.drawW - r, p.y);
+                ctx.quadraticCurveTo(p.x + p.drawW, p.y, p.x + p.drawW, p.y + r);
+                ctx.lineTo(p.x + p.drawW, p.y + p.drawH - r);
+                ctx.quadraticCurveTo(p.x + p.drawW, p.y + p.drawH, p.x + p.drawW - r, p.y + p.drawH);
+                ctx.lineTo(p.x + r, p.y + p.drawH);
+                ctx.quadraticCurveTo(p.x, p.y + p.drawH, p.x, p.y + p.drawH - r);
+                ctx.lineTo(p.x, p.y + r);
+                ctx.quadraticCurveTo(p.x, p.y, p.x + r, p.y);
+                ctx.closePath();
+                ctx.clip();
+            }
+        }
         ctx.drawImage(p.img, p.x, p.y, p.drawW, p.drawH);
+        ctx.restore();
     }
     
     ctx.restore();
@@ -95,12 +121,40 @@ const exportImage = async (useTransparent) => {
     return canvasRef.value?.toDataURL('image/png');
 };
 
+// 获取当前画布分辨率（同步计算，不实际渲染）
+const getResolution = () => {
+    if (props.images.length === 0) {
+        return { width: 600, height: 400 };
+    }
+    
+    const cols = props.masonryCols;
+    const fixedWidth = props.masonryColumnWidth;
+    
+    // 计算每列高度
+    let colHeights = new Array(cols).fill(0);
+    for (const item of props.images) {
+        const scale = fixedWidth / item.width;
+        const h = item.height * scale;
+        let minCol = colHeights.indexOf(Math.min(...colHeights));
+        colHeights[minCol] += h + props.spacing;
+    }
+    
+    const originalWidth = cols * fixedWidth + (cols - 1) * props.spacing;
+    const originalHeight = Math.max(...colHeights) - props.spacing;
+    const borderSize = props.showOuterBorder ? props.spacing : 0;
+    
+    return {
+        width: originalWidth + borderSize * 2,
+        height: originalHeight + borderSize * 2
+    };
+};
+
 watch([() => props.images, () => props.spacing, () => props.bgColor, () => props.useTransparent,
         () => props.masonryCols, () => props.masonryColumnWidth, () => props.showOuterBorder], () => {
     nextTick(() => renderCanvas());
 }, { deep: true, immediate: true });
 
-defineExpose({ exportImage });
+defineExpose({ exportImage, getResolution });
 </script>
 
 <style scoped>

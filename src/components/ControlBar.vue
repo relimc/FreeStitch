@@ -12,12 +12,16 @@
             </button>
         </div>
         
-        <!-- 通用参数：间距 + 背景 -->
+        <!-- 通用参数：间距（内边距）+ 外框 -->
         <div class="param-group">
             <div class="param-row">
-                <span class="param-label">间距</span>
+                <span class="param-label">内边距</span>
                 <input type="range" :value="spacing" min="0" max="50" @input="$emit('spacing-change', parseInt($event.target.value))">
                 <span class="param-value">{{ spacing }}px</span>
+                <label class="border-checkbox">
+                    <input type="checkbox" :checked="showOuterBorder" @change="$emit('update-show-outer-border', $event.target.checked)">
+                    <span>外框</span>
+                </label>
             </div>
             <div class="param-row">
                 <span class="param-label">背景</span>
@@ -25,10 +29,16 @@
                     <input type="color" :value="bgColor" @click="onColorPickerClick" @input="onColorChange">
                     <button class="transparent-btn" :class="{ active: useTransparent }" @click="$emit('toggle-transparent', !useTransparent)">透明</button>
                 </div>
+                <!-- 蒙版下拉框放在背景行右侧 -->
+                <select :value="maskShape" @input="$emit('update-mask-shape', $event.target.value)" class="mask-select">
+                    <option value="none">无蒙版</option>
+                    <option value="circle">圆形蒙版</option>
+                    <option value="roundRect">圆角矩形蒙版</option>
+                </select>
             </div>
         </div>
 
-        <!-- 高级选项容器（触发器 + 不可见连接区） -->
+        <!-- 高级选项容器 -->
         <div class="advanced-container"
              @mouseenter="handleMouseEnter"
              @mouseleave="handleMouseLeave">
@@ -37,19 +47,22 @@
                 <span class="trigger-arrow">›</span>
             </div>
             
-            <!-- 不可见连接区域（填补触发器和面板之间的空隙） -->
             <div class="advanced-gap"></div>
             
-            <!-- 使用 Teleport 将悬浮面板传送到 body，避免被遮挡 -->
             <Teleport to="body">
-                <div v-if="showAdvancedPanel" 
+                <div v-show="showAdvancedPanel || keepPanelOpen" 
                      ref="advancedPanelRef"
                      class="advanced-panel-global"
-                     :style="globalPanelStyle"
+                     :class="{ 'panel-sticky': keepPanelOpen }"
+                     :style="panelStyle"
                      @mouseenter="handleMouseEnter"
                      @mouseleave="handleMouseLeave">
                     <div class="panel-header">
                         <span>高级设置 - {{ currentModeLabel }}</span>
+                        <label class="pin-checkbox">
+                            <input type="checkbox" v-model="keepPanelOpen">
+                            <span>📌 固定</span>
+                        </label>
                     </div>
                     <div class="panel-body">
                         <!-- 自由模式参数 -->
@@ -120,29 +133,16 @@
                                 </button>
                             </div>
                         </div>
-
+                        
+                        <!-- 高级选项：圆角半径和填充方式 -->
                         <div class="param-divider"></div>
-                        <div class="param-row">
-                            <span class="param-label">外框</span>
-                            <label class="border-checkbox">
-                                <input type="checkbox" :checked="showOuterBorder" @change="$emit('update-show-outer-border', $event.target.checked)">
-                            </label>
-                        </div>
-                        <div class="param-row">
-                            <span class="param-label">蒙版</span>
-                            <select :value="maskShape" @input="$emit('update-mask-shape', $event.target.value)">
-                                <option value="none">无</option>
-                                <option value="circle">圆形</option>
-                                <option value="roundRect">圆角矩形</option>
-                            </select>
-                        </div>
                         <div v-if="maskShape === 'roundRect'" class="param-row">
-                            <span class="param-label">圆角</span>
-                            <input type="number" :value="cornerRadius" @input="$emit('update-corner-radius', parseInt($event.target.value))" min="0" step="5">
-                            <span>px</span>
+                            <span class="param-label">圆角半径</span>
+                            <input type="range" :value="cornerRadius" min="0" max="100" step="1" @input="$emit('update-corner-radius', parseInt($event.target.value))">
+                            <span class="param-value">{{ cornerRadius }}px</span>
                         </div>
                         <div class="param-row">
-                            <span class="param-label">填充</span>
+                            <span class="param-label">填充方式</span>
                             <select :value="fillMode" @input="$emit('update-fill-mode', $event.target.value)">
                                 <option value="contain">contain (留白)</option>
                                 <option value="cover">cover (裁剪)</option>
@@ -192,7 +192,8 @@ const emit = defineEmits([
     'update-masonry-cols', 'update-masonry-column-width',
     'update-cell-width', 'update-cell-height', 'update-fill-mode',
     'update-mask-shape', 'update-corner-radius',
-    'select-preset-template', 'clear-canvas', 'export', 'update-show-outer-border'
+    'select-preset-template', 'update-show-outer-border',
+    'clear-canvas', 'export'
 ]);
 
 const modeOptions = [
@@ -217,77 +218,132 @@ const currentModeLabel = computed(() => {
 
 // 高级面板控制
 const showAdvancedPanel = ref(false);
+const keepPanelOpen = ref(false);
 const advancedTriggerRef = ref(null);
 const advancedPanelRef = ref(null);
-const globalPanelStyle = ref({});
+const panelStyle = ref({});
 let hideTimeout = null;
+let isAdjusting = false;
+let resizeObserver = null;
 
-const handleMouseEnter = () => {
+const getControlsSectionRect = () => {
+    const section = document.querySelector('.controls-section');
+    if (!section) return null;
+    return section.getBoundingClientRect();
+};
+
+const adjustPanelPosition = () => {
+    if (isAdjusting) return;
+    isAdjusting = true;
+    
+    nextTick(() => {
+        const triggerRect = advancedTriggerRef.value?.getBoundingClientRect();
+        const panelEl = advancedPanelRef.value;
+        const controlsRect = getControlsSectionRect();
+        
+        if (!triggerRect || !panelEl || !controlsRect) {
+            isAdjusting = false;
+            return;
+        }
+        
+        const targetHeight = controlsRect.height;
+        // 使用控制区的顶部位置，而不是触发器的顶部位置
+        let top = controlsRect.top;
+        
+        // 确保面板不超出视口顶部
+        if (top < 0) top = 0;
+        
+        panelStyle.value = {
+            position: 'fixed',
+            left: `${triggerRect.right + 8}px`,
+            top: `${top}px`,
+            width: '320px',
+            height: `${targetHeight}px`,
+            zIndex: 10000,
+            display: 'flex',
+            flexDirection: 'column'
+        };
+        
+        isAdjusting = false;
+    });
+};
+
+const setupResizeObserver = () => {
+    const controlsSection = document.querySelector('.controls-section');
+    if (controlsSection && window.ResizeObserver) {
+        resizeObserver = new ResizeObserver(() => {
+            if (showAdvancedPanel.value || keepPanelOpen.value) {
+                adjustPanelPosition();
+            }
+        });
+        resizeObserver.observe(controlsSection);
+    }
+};
+
+const handleMouseEnter = async () => {
+    if (keepPanelOpen.value) return;
     if (hideTimeout) {
         clearTimeout(hideTimeout);
         hideTimeout = null;
     }
-    showAdvancedPanel.value = true;
-    adjustPanelPosition();
+    if (!showAdvancedPanel.value) {
+        showAdvancedPanel.value = true;
+        await nextTick();
+        requestAnimationFrame(() => {
+            adjustPanelPosition();
+        });
+    }
 };
 
 const handleMouseLeave = () => {
+    if (keepPanelOpen.value) return;
     hideTimeout = setTimeout(() => {
         showAdvancedPanel.value = false;
     }, 200);
 };
 
-const adjustPanelPosition = async () => {
-    await nextTick();
-    if (!advancedTriggerRef.value || !advancedPanelRef.value) return;
-    const triggerRect = advancedTriggerRef.value.getBoundingClientRect();
-    const panelRect = advancedPanelRef.value.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    
-    let top = triggerRect.top;
-    let left = triggerRect.right + 8;
-    
-    if (triggerRect.bottom + panelRect.height > viewportHeight - 20) {
-        top = triggerRect.bottom - panelRect.height;
-    }
-    
-    if (triggerRect.right + panelRect.width + 8 > window.innerWidth) {
-        left = triggerRect.left - panelRect.width - 8;
-    }
-    
-    globalPanelStyle.value = {
-        position: 'fixed',
-        left: `${left}px`,
-        top: `${top}px`,
-        width: '320px',
-        zIndex: 10000
-    };
-};
-
 const handleResize = () => {
-    if (showAdvancedPanel.value) {
+    if (showAdvancedPanel.value || keepPanelOpen.value) {
         adjustPanelPosition();
     }
 };
+
+watch(keepPanelOpen, (newVal) => {
+    if (newVal) {
+        showAdvancedPanel.value = true;
+        adjustPanelPosition();
+    }
+});
 
 watch(showAdvancedPanel, (newVal) => {
     if (newVal) {
-        adjustPanelPosition();
+        requestAnimationFrame(() => {
+            adjustPanelPosition();
+        });
     }
 });
 
 onMounted(() => {
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleResize, true);
+    setupResizeObserver();
+    
+    setTimeout(() => {
+        if (showAdvancedPanel.value || keepPanelOpen.value) {
+            adjustPanelPosition();
+        }
+    }, 100);
 });
 
 onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('scroll', handleResize, true);
+    if (resizeObserver) {
+        resizeObserver.disconnect();
+    }
     if (hideTimeout) clearTimeout(hideTimeout);
 });
 
-// 背景色处理
 const onColorPickerClick = () => {
     if (props.useTransparent) {
         emit('toggle-transparent', false);
@@ -305,7 +361,7 @@ const onColorChange = (e) => {
 <style scoped>
 .controls-section {
     flex-shrink: 0;
-    padding: 16px;
+    padding: 0 0 16px 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -317,7 +373,10 @@ const onColorChange = (e) => {
     gap: 6px;
     background: #f1f5f9;
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 0;
+    border-top: 1px solid #e8ecf0;  /* 添加上边框 */
+    height: 41px;
+    box-sizing: border-box;
 }
 .mode-tab {
     flex: 1;
@@ -327,19 +386,21 @@ const onColorChange = (e) => {
     color: #64748b;
     background: transparent;
     border: none;
-    border-radius: 8px;
+    border-radius: 0;
     cursor: pointer;
     transition: all 0.2s;
+    height: 100%;
+    box-sizing: border-box;
 }
 .mode-tab.active {
     background: #ffffff;
     color: #3b82f6;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: none;
 }
 
 .param-group {
     background: #f8fafc;
-    border-radius: 12px;
+    border-radius: 0;
     padding: 10px 12px;
 }
 .param-row {
@@ -374,6 +435,10 @@ const onColorChange = (e) => {
     background: #3b82f6;
     color: white;
 }
+.mask-select {
+    margin-left: auto;
+    width: 120px;
+}
 input[type="range"] {
     flex: 1;
     min-width: 100px;
@@ -386,6 +451,22 @@ input[type="color"] {
     border: 1px solid #e2e8f0;
 }
 
+.border-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    color: #475569;
+    margin-left: 8px;
+}
+.border-checkbox input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+}
+
 .advanced-container {
     position: relative;
 }
@@ -396,7 +477,7 @@ input[type="color"] {
     align-items: center;
     padding: 8px 12px;
     background: #f1f5f9;
-    border-radius: 12px;
+    border-radius: 0;
     cursor: pointer;
     font-size: 0.75rem;
     color: #475569;
@@ -422,16 +503,16 @@ input[type="color"] {
 
 .action-buttons {
     display: flex;
-    gap: 10px;
-    margin-top: 4px;
+    gap: 12px;
+    margin: 8px 12px 0 12px;
 }
 .action-btn {
     flex: 1;
-    padding: 8px 0;
+    padding: 8px 16px;
     font-size: 0.75rem;
     font-weight: 500;
     border: none;
-    border-radius: 12px;
+    border-radius: 20px;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -476,7 +557,7 @@ input, select {
     font-size: 0.7rem;
     background: #f1f5f9;
     border: none;
-    border-radius: 20px;
+    border-radius: 0;
     cursor: pointer;
 }
 .preset-btn.active {
@@ -498,41 +579,62 @@ input, select {
 /* 全局悬浮面板样式 */
 .advanced-panel-global {
     background: #ffffff;
-    border-radius: 16px;
-    box-shadow: 0 20px 35px -8px rgba(0, 0, 0, 0.2);
-    border: 1px solid #e2e8f0;
+    border-top: 1px solid #e8ecf0;
+    border-right: 1px solid #e8ecf0;
+    border-bottom: 1px solid #e8ecf0;
+    border-left: none;
     overflow: hidden;
+}
+.advanced-panel-global.panel-sticky {
+    border-top: 1px solid #e8ecf0;
+    border-right: 1px solid #e8ecf0;
+    border-bottom: 1px solid #e8ecf0;
+    border-left: none;
 }
 .panel-header {
     padding: 12px 16px;
     background: #f8fafc;
-    border-bottom: 1px solid #eef2f6;
     font-weight: 600;
     font-size: 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    height: 41px;
+    box-sizing: border-box;
+    border-top: 1px solid #e8ecf0;
 }
-.panel-body {
-    padding: 16px;
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.border-checkbox {
+.pin-checkbox {
     display: flex;
     align-items: center;
-    gap: 6px;
-    cursor: pointer;
+    gap: 4px;
     font-size: 0.7rem;
-    color: #475569;
+    font-weight: normal;
+    cursor: pointer;
+    color: #64748b;
 }
-.border-checkbox input {
-    width: 16px;
-    height: 16px;
+.pin-checkbox input {
+    width: 14px;
+    height: 14px;
     margin: 0;
     cursor: pointer;
 }
-.info-tip {
-    font-size: 0.65rem;
-    color: #94a3b8;
-    margin-left: 4px;
+.panel-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+.panel-body::-webkit-scrollbar {
+    width: 6px;
+}
+.panel-body::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.panel-body::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 </style>
