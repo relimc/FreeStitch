@@ -58,6 +58,20 @@
                 :showOuterBorder="showOuterBorder"
                 v-model:presetGridType="presetGridType"
                 v-model:presetSubModeId="presetSubModeId"
+                :posterText="posterText"
+                :posterDateFormat="posterDateFormat"
+                :posterTextColor="posterTextColor"
+                :posterFontSize="posterFontSize"
+                :posterTextPosition="posterTextPosition"
+                :presetGridType="presetGridType"
+                :presetSubModeId="presetSubModeId"
+                @update:presetGridType="presetGridType = $event"
+                @update:presetSubModeId="presetSubModeId = $event"
+                @update-poster-text="posterText = $event"
+                @update-poster-date-format="posterDateFormat = $event"
+                @update-poster-text-color="posterTextColor = $event"
+                @update-poster-font-size="posterFontSize = $event"
+                @update-poster-text-position="posterTextPosition = $event"
                 @select-sub-mode="presetSubModeId = $event"
                 @mode-change="mode = $event"
                 @spacing-change="spacing = $event"
@@ -143,15 +157,16 @@
                 <PresetModeCanvas 
                     ref="presetCanvasRef"
                     :subModeId="presetSubModeId"
+                    :posterText="posterText"
+                    :posterDateFormat="posterDateFormat"
+                    :posterTextColor="posterTextColor"
+                    :posterFontSize="posterFontSize"
+                    :posterTextPosition="posterTextPosition"
                     :spacing="spacing"
                     :bgColor="bgColor"
                     :useTransparent="useTransparent"
                     :fillMode="fillMode"
                     :showOuterBorder="showOuterBorder"
-                    :posterText="posterText"
-                    :posterDateFormat="posterDateFormat"
-                    :posterTextColor="posterTextColor"
-                    :posterFontSize="posterFontSize"
                     :canvasWidth="canvasWidth"
                     :canvasHeight="canvasHeight"
                     @update:cells="presetCells = $event"
@@ -208,6 +223,12 @@ const gridCanvasRef = ref(null);
 const masonryCanvasRef = ref(null);
 const presetCanvasRef = ref(null);
 const selectedPresetCellIndex = ref(-1);
+
+const posterText = ref('美好时光');
+const posterDateFormat = ref('YYYY-MM-DD');
+const posterTextColor = ref('#ffffff');
+const posterFontSize = ref(24);
+const posterTextPosition = ref('bottom-center');  // 文字位置，如果也需要
 
 // 当前活动画布组件的 ref
 const activeCanvasRef = computed(() => {

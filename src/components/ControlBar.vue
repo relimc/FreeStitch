@@ -196,7 +196,9 @@ const emit = defineEmits([
     'update-mask-shape', 'update-corner-radius',
     'select-preset-template', 'update-show-outer-border',
     'clear-canvas', 'export',
-    'select-sub-mode'  // 新增子模式选择事件
+    'select-sub-mode',
+    'update:presetGridType',
+    'update:presetSubModeId'
 ]);
 
 const props = defineProps({
