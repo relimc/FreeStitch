@@ -56,6 +56,9 @@
                 :cornerRadius="cornerRadius"
                 :presetTemplateId="presetTemplateId"
                 :showOuterBorder="showOuterBorder"
+                v-model:presetGridType="presetGridType"
+                v-model:presetSubModeId="presetSubModeId"
+                @select-sub-mode="presetSubModeId = $event"
                 @mode-change="mode = $event"
                 @spacing-change="spacing = $event"
                 @bg-color-change="bgColor = $event"
@@ -138,21 +141,21 @@
                 
                 <!-- 预设模式 -->
                 <PresetModeCanvas 
-                    v-else-if="mode === 'preset'"
                     ref="presetCanvasRef"
-                    v-model="presetCells"
-                    :cellWidth="cellWidth"
-                    :cellHeight="cellHeight"
-                    :images="canvasImages"
+                    :subModeId="presetSubModeId"
                     :spacing="spacing"
                     :bgColor="bgColor"
                     :useTransparent="useTransparent"
                     :fillMode="fillMode"
-                    :presetTemplateId="presetTemplateId"
                     :showOuterBorder="showOuterBorder"
-                    :maskShape="maskShape"
-                    :cornerRadius="cornerRadius"
-                    @select-cell="setSelectedPresetCell"
+                    :posterText="posterText"
+                    :posterDateFormat="posterDateFormat"
+                    :posterTextColor="posterTextColor"
+                    :posterFontSize="posterFontSize"
+                    :canvasWidth="canvasWidth"
+                    :canvasHeight="canvasHeight"
+                    @update:cells="presetCells = $event"
+                    @select-cell="selectedPresetCellIndex = $event"
                 />
             </div>
             <!-- 分辨率显示浮层 -->
@@ -195,6 +198,8 @@ const presetTemplateId = ref('grid-3x3');
 const presetCells = ref([]);
 const showOuterBorder = ref(false);
 const currentResolution = ref({ width: 0, height: 0 });
+const presetGridType = ref(2);
+const presetSubModeId = ref('2-horizontal'); // 默认横向双拼
 let nextId = 1;
 
 // 画布组件的 ref
@@ -218,6 +223,7 @@ provide('galleryImages', galleryImages);
 
 // 设置当前选中的预设格子
 const setSelectedPresetCell = (index) => {
+    console.log('选中格子索引:', index);
     selectedPresetCellIndex.value = index;
 };
 
@@ -270,20 +276,15 @@ const addToCanvas = async (imageId) => {
     if (!img) return;
     
     if (mode.value === 'preset') {
+        if (!presetCanvasRef.value) return;
         if (selectedPresetCellIndex.value !== -1) {
-            // 优先使用海报模式方法
-            if (presetCanvasRef.value.addImageToSelectedPosterCell) {
-                presetCanvasRef.value.addImageToSelectedPosterCell(img.id, img.dataURL);
-            } else {
-                presetCanvasRef.value.addImageToSelectedCell(img.id, img.dataURL);
-            }
+            presetCanvasRef.value.addImageToSelectedCell(img.id, img.dataURL);
         } else {
-            if (presetCanvasRef.value.addImageToEmptyPosterCell) {
-                presetCanvasRef.value.addImageToEmptyPosterCell(img.id, img.dataURL);
-            } else {
-                presetCanvasRef.value.addImageToEmptyCell(img.id, img.dataURL);
-            }
+            presetCanvasRef.value.addImageToEmptyCell(img.id, img.dataURL);
         }
+        await nextTick();
+        updateResolution();
+        return;
     }
     
     const alreadyInCanvas = canvasImages.value.some(i => i.id === imageId);
@@ -344,8 +345,8 @@ const handleExport = async () => {
     }
     
     if (mode.value === 'preset') {
-        const hasImages = presetCells.value.some(cell => cell && cell.imageId);
-        if (!hasImages) {
+        // 调用子组件的 hasImages 方法
+        if (!canvasRef.hasImages || !canvasRef.hasImages()) {
             alert('请先填充预设模板的图片');
             return;
         }

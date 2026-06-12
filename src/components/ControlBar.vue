@@ -29,7 +29,6 @@
                     <input type="color" :value="bgColor" @click="onColorPickerClick" @input="onColorChange">
                     <button class="transparent-btn" :class="{ active: useTransparent }" @click="$emit('toggle-transparent', !useTransparent)">透明</button>
                 </div>
-                <!-- 蒙版下拉框放在背景行右侧 -->
                 <select :value="maskShape" @input="$emit('update-mask-shape', $event.target.value)" class="mask-select">
                     <option value="none">无蒙版</option>
                     <option value="circle">圆形蒙版</option>
@@ -46,9 +45,7 @@
                 <span>⚙️ 高级设置</span>
                 <span class="trigger-arrow">›</span>
             </div>
-            
             <div class="advanced-gap"></div>
-            
             <Teleport to="body">
                 <div v-show="showAdvancedPanel || keepPanelOpen" 
                      ref="advancedPanelRef"
@@ -120,17 +117,42 @@
                             </div>
                         </div>
                         
-                        <!-- 预设模式参数 -->
+                        <!-- 预设模式参数（重构后） -->
                         <div v-if="mode === 'preset'" class="param-group-inline">
-                            <div class="preset-templates">
-                                <button 
-                                    v-for="tmpl in presetTemplates" 
-                                    :key="tmpl.id"
-                                    :class="['preset-btn', { active: presetTemplateId === tmpl.id }]"
-                                    @click="$emit('select-preset-template', tmpl.id)"
-                                >
-                                    {{ tmpl.name }}
-                                </button>
+                            <!-- 宫格类型选择 -->
+                            <div class="preset-category">
+                                <div class="category-title">选择宫格类型</div>
+                                <div class="category-buttons">
+                                    <button 
+                                        v-for="num in [2,3,4,5,6,7,8,9]" 
+                                        :key="num"
+                                        :class="['category-btn', { active: presetGridType === num }]"
+                                        @click="selectGridType(num)"
+                                    >
+                                        {{ num }}宫格
+                                    </button>
+                                    <button 
+                                        :class="['category-btn', { active: presetGridType === 'text' }]"
+                                        @click="selectGridType('text')"
+                                    >
+                                        图文模式
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 子模式选择（根据宫格类型动态显示） -->
+                            <div v-if="currentSubModes.length" class="preset-submode">
+                                <div class="submode-title">选择布局</div>
+                                <div class="submode-buttons">
+                                    <button 
+                                        v-for="sub in currentSubModes" 
+                                        :key="sub.id"
+                                        :class="['submode-btn', { active: presetSubModeId === sub.id }]"
+                                        @click="$emit('select-sub-mode', sub.id)"
+                                    >
+                                        {{ sub.name }}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
@@ -164,6 +186,19 @@
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 
+// 定义模型（双向绑定）
+const emit = defineEmits([
+    'mode-change', 'spacing-change', 'bg-color-change', 'toggle-transparent',
+    'update-canvas-width', 'update-canvas-height',
+    'update-grid-rows', 'update-grid-cols', 'update-grid-layout',
+    'update-masonry-cols', 'update-masonry-column-width',
+    'update-cell-width', 'update-cell-height', 'update-fill-mode',
+    'update-mask-shape', 'update-corner-radius',
+    'select-preset-template', 'update-show-outer-border',
+    'clear-canvas', 'export',
+    'select-sub-mode'  // 新增子模式选择事件
+]);
+
 const props = defineProps({
     mode: { type: String, default: 'preset' },
     spacing: { type: Number, default: 12 },
@@ -182,20 +217,62 @@ const props = defineProps({
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
     presetTemplateId: { type: String, default: 'grid-3x3' },
-    showOuterBorder: { type: Boolean, default: false }
+    showOuterBorder: { type: Boolean, default: false },
+    // 新增预设模式相关props
+    presetGridType: { type: [Number, String], default: 2 },
+    presetSubModeId: { type: String, default: '2-horizontal' }
 });
 
-const emit = defineEmits([
-    'mode-change', 'spacing-change', 'bg-color-change', 'toggle-transparent',
-    'update-canvas-width', 'update-canvas-height',
-    'update-grid-rows', 'update-grid-cols', 'update-grid-layout',
-    'update-masonry-cols', 'update-masonry-column-width',
-    'update-cell-width', 'update-cell-height', 'update-fill-mode',
-    'update-mask-shape', 'update-corner-radius',
-    'select-preset-template', 'update-show-outer-border',
-    'clear-canvas', 'export'
-]);
+// 子模式库
+const subModeLibrary = {
+    2: [
+        { id: '2-horizontal', name: '横向双拼', layout: { rows: 1, cols: 2, cells: 2 } },
+        { id: '2-vertical', name: '纵向双拼', layout: { rows: 2, cols: 1, cells: 2 } }
+    ],
+    3: [
+        { id: '3-horizontal', name: '横向三拼', layout: { rows: 1, cols: 3, cells: 3 } },
+        { id: '3-vertical', name: '纵向三拼', layout: { rows: 3, cols: 1, cells: 3 } }
+    ],
+    4: [
+        { id: '4-grid', name: '2x2网格', layout: { rows: 2, cols: 2, cells: 4 } },
+        { id: '4-horizontal', name: '横向四拼', layout: { rows: 1, cols: 4, cells: 4 } },
+        { id: '4-vertical', name: '纵向四拼', layout: { rows: 4, cols: 1, cells: 4 } }
+    ],
+    5: [
+        { id: '5-2x3', name: '2+3布局', layout: { rows: 2, cols: 3, cells: 5 } }
+    ],
+    6: [
+        { id: '6-2x3', name: '2x3网格', layout: { rows: 2, cols: 3, cells: 6 } },
+        { id: '6-3x2', name: '3x2网格', layout: { rows: 3, cols: 2, cells: 6 } }
+    ],
+    7: [
+        { id: '7-1-3-3', name: '1+3+3布局', layout: { rows: 3, cols: 3, cells: 7 } }
+    ],
+    8: [
+        { id: '8-2x4', name: '2x4网格', layout: { rows: 2, cols: 4, cells: 8 } },
+        { id: '8-4x2', name: '4x2网格', layout: { rows: 4, cols: 2, cells: 8 } }
+    ],
+    9: [
+        { id: '9-grid', name: '3x3网格', layout: { rows: 3, cols: 3, cells: 9 } }
+    ],
+    text: [
+        { id: 'text-simple', name: '图文模式', layout: { type: 'text', cells: 1 } }
+    ]
+};
 
+const currentSubModes = computed(() => subModeLibrary[props.presetGridType] || []);
+
+// 选择宫格类型
+const selectGridType = (type) => {
+    emit('update:presetGridType', type);
+    // 自动选中第一个子模式
+    const subs = subModeLibrary[type];
+    if (subs && subs.length) {
+        emit('update:presetSubModeId', subs[0].id);
+    }
+};
+
+// 其他原有代码（模式选项等）
 const modeOptions = [
     { value: 'preset', label: '预设', icon: '🎨' },
     { value: 'free', label: '自由', icon: '✨' },
@@ -203,27 +280,12 @@ const modeOptions = [
     { value: 'masonry', label: '瀑布流', icon: '🏞️' }
 ];
 
-const presetTemplates = [
-    // 图片拼接模板
-    { id: 'grid-3x3', name: '九宫格', type: 'grid', rows: 3, cols: 3 },
-    { id: 'grid-2x2', name: '四宫格', type: 'grid', rows: 2, cols: 2 },
-    { id: 'grid-1x2', name: '横向双拼', type: 'grid', rows: 1, cols: 2 },
-    { id: 'grid-2x1', name: '纵向双拼', type: 'grid', rows: 2, cols: 1 },
-    // 图文海报模板
-    { id: 'poster-classic', name: '经典九宫格', type: 'poster', layout: 'grid-3x3', cells: 9, textPosition: 'bottom' },
-    { id: 'poster-four', name: '四宫格海报', type: 'poster', layout: 'grid-2x2', cells: 4, textPosition: 'bottom' },
-    { id: 'poster-big-small', name: '杂志风', type: 'poster', layout: 'big-small', cells: 3, textPosition: 'bottom' },
-    { id: 'poster-top-bottom', name: '上下构图', type: 'poster', layout: 'top-bottom', cells: 3, textPosition: 'bottom' },
-    { id: 'poster-banner', name: '横幅海报', type: 'poster', layout: 'banner', cells: 1, textPosition: 'below' },
-    { id: 'poster-movie', name: '电影海报', type: 'poster', layout: 'movie', cells: 1, textPosition: 'center' }
-];
-
 const currentModeLabel = computed(() => {
     const opt = modeOptions.find(o => o.value === props.mode);
     return opt ? opt.label : '预设';
 });
 
-// 高级面板控制
+// 高级面板控制（保持不变）
 const showAdvancedPanel = ref(false);
 const keepPanelOpen = ref(false);
 const advancedTriggerRef = ref(null);
@@ -254,10 +316,7 @@ const adjustPanelPosition = () => {
         }
         
         const targetHeight = controlsRect.height;
-        // 使用控制区的顶部位置，而不是触发器的顶部位置
         let top = controlsRect.top;
-        
-        // 确保面板不超出视口顶部
         if (top < 0) top = 0;
         
         panelStyle.value = {
@@ -381,9 +440,6 @@ const onColorChange = (e) => {
     background: #f1f5f9;
     padding: 4px;
     border-radius: 0;
-    border-top: 1px solid #e8ecf0;  /* 添加上边框 */
-    height: 41px;
-    box-sizing: border-box;
 }
 .mode-tab {
     flex: 1;
@@ -395,19 +451,13 @@ const onColorChange = (e) => {
     border: none;
     border-radius: 0;
     cursor: pointer;
-    transition: all 0.2s;
-    height: 100%;
-    box-sizing: border-box;
 }
 .mode-tab.active {
     background: #ffffff;
     color: #3b82f6;
-    box-shadow: none;
 }
-
 .param-group {
     background: #f8fafc;
-    border-radius: 0;
     padding: 10px 12px;
 }
 .param-row {
@@ -415,9 +465,6 @@ const onColorChange = (e) => {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-}
-.param-row + .param-row {
-    margin-top: 10px;
 }
 .param-label {
     font-size: 0.7rem;
@@ -446,58 +493,29 @@ const onColorChange = (e) => {
     margin-left: auto;
     width: 120px;
 }
-input[type="range"] {
-    flex: 1;
-    min-width: 100px;
-}
-input[type="color"] {
-    width: 32px;
-    height: 32px;
-    padding: 2px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-}
-
 .border-checkbox {
     display: flex;
     align-items: center;
     gap: 4px;
     cursor: pointer;
     font-size: 0.7rem;
-    color: #475569;
     margin-left: 8px;
 }
-.border-checkbox input {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    cursor: pointer;
-}
-
 .advanced-container {
     position: relative;
 }
-
 .advanced-trigger {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
     background: #f1f5f9;
-    border-radius: 0;
     cursor: pointer;
     font-size: 0.75rem;
-    color: #475569;
-    transition: all 0.2s;
-}
-.advanced-trigger:hover {
-    background: #e2e8f0;
 }
 .trigger-arrow {
     font-size: 1rem;
-    color: #94a3b8;
 }
-
 .advanced-gap {
     position: absolute;
     left: 100%;
@@ -507,7 +525,6 @@ input[type="color"] {
     background: transparent;
     pointer-events: auto;
 }
-
 .action-buttons {
     display: flex;
     gap: 12px;
@@ -521,30 +538,19 @@ input[type="color"] {
     border: none;
     border-radius: 20px;
     cursor: pointer;
-    transition: all 0.2s;
 }
 .clear-btn {
     background: #f1f5f9;
     color: #475569;
 }
-.clear-btn:hover {
-    background: #e2e8f0;
-}
 .export-btn {
     background: #10b981;
     color: white;
 }
-.export-btn:hover {
-    background: #059669;
-}
-
 .size-inputs {
     display: flex;
     align-items: center;
     gap: 6px;
-}
-.size-inputs input {
-    width: 65px;
 }
 input, select {
     background: #ffffff;
@@ -552,24 +558,33 @@ input, select {
     padding: 6px 10px;
     border-radius: 8px;
     font-size: 0.7rem;
-    color: #1e293b;
 }
-.preset-templates {
+.preset-category {
+    margin-bottom: 16px;
+}
+.category-title, .submode-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #475569;
+}
+.category-buttons, .submode-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
-.preset-btn {
-    padding: 6px 12px;
-    font-size: 0.7rem;
+.category-btn, .submode-btn {
     background: #f1f5f9;
-    border: none;
-    border-radius: 0;
+    border: 1px solid #e2e8f0;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
     cursor: pointer;
 }
-.preset-btn.active {
+.category-btn.active, .submode-btn.active {
     background: #3b82f6;
     color: white;
+    border-color: #3b82f6;
 }
 .param-divider {
     height: 1px;
@@ -582,8 +597,6 @@ input, select {
     gap: 12px;
     margin-bottom: 16px;
 }
-
-/* 全局悬浮面板样式 */
 .advanced-panel-global {
     background: #ffffff;
     border-top: 1px solid #e8ecf0;
@@ -592,38 +605,21 @@ input, select {
     border-left: none;
     overflow: hidden;
 }
-.advanced-panel-global.panel-sticky {
-    border-top: 1px solid #e8ecf0;
-    border-right: 1px solid #e8ecf0;
-    border-bottom: 1px solid #e8ecf0;
-    border-left: none;
-}
 .panel-header {
     padding: 12px 16px;
     background: #f8fafc;
     font-weight: 600;
-    font-size: 0.8rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-shrink: 0;
     height: 41px;
     box-sizing: border-box;
-    border-top: 1px solid #e8ecf0;
 }
 .pin-checkbox {
     display: flex;
     align-items: center;
     gap: 4px;
     font-size: 0.7rem;
-    font-weight: normal;
-    cursor: pointer;
-    color: #64748b;
-}
-.pin-checkbox input {
-    width: 14px;
-    height: 14px;
-    margin: 0;
     cursor: pointer;
 }
 .panel-body {
@@ -633,15 +629,5 @@ input, select {
 }
 .panel-body::-webkit-scrollbar {
     width: 6px;
-}
-.panel-body::-webkit-scrollbar-track {
-    background: #f1f5f9;
-}
-.panel-body::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-.panel-body::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
 }
 </style>
