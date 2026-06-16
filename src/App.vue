@@ -171,6 +171,8 @@
                     :canvasHeight="canvasHeight"
                     @update:cells="presetCells = $event"
                     @select-cell="selectedPresetCellIndex = $event"
+                    :maskShape="maskShape"
+                    :cornerRadius="cornerRadius"
                 />
             </div>
             <!-- 分辨率显示浮层 -->

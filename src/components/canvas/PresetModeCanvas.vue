@@ -1,23 +1,42 @@
 <template>
-    <div 
-        class="preset-canvas" 
-        :style="canvasContainerStyle"
-    >
-        <div 
-            class="preset-canvas-inner"
-            :style="canvasInnerStyle"
-        >
-            <!-- 网格布局 -->
-            <div v-if="!isTextMode" class="preset-layout" :style="layoutStyle">
+    <div class="preset-canvas">
+        <!-- 网格布局 -->
+        <div v-if="!isTextMode" class="preset-layout" :style="layoutStyle">
+            <div 
+                v-for="(cell, idx) in cells" 
+                :key="idx"
+                class="preset-cell"
+                :class="{
+                    'cell-selected': selectedCellIndex === idx,
+                    'mask-circle': maskShape === 'circle',
+                    'mask-round': maskShape === 'roundRect'
+                }"
+                @click="selectCell(idx)"
+            >
+                <img v-if="cell && cell.imageData" :src="cell.imageData" :style="imageStyle">
+                <div v-else class="cell-placeholder">
+                    <span>+</span>
+                    <span class="placeholder-text">点击选中</span>
+                </div>
+                <div v-if="cell && cell.imageData" class="cell-remove" @click.stop="removeCellImage(idx)">✖</div>
+            </div>
+        </div>
+
+        <!-- 图文模式 -->
+        <div v-else class="text-mode-wrapper">
+            <div 
+                class="text-mode-layout"
+                :class="{
+                    'mask-circle': maskShape === 'circle',
+                    'mask-round': maskShape === 'roundRect'
+                }"
+                :style="textLayoutStyle"
+            >
                 <div 
                     v-for="(cell, idx) in cells" 
                     :key="idx"
-                    class="preset-cell"
-                    :class="{
-                        'cell-selected': selectedCellIndex === idx,
-                        'mask-circle': maskShape === 'circle',
-                        'mask-round': maskShape === 'roundRect'
-                    }"
+                    class="preset-cell text-preset-cell"
+                    :class="{ 'cell-selected': selectedCellIndex === idx }"
                     @click="selectCell(idx)"
                 >
                     <img v-if="cell && cell.imageData" :src="cell.imageData" :style="imageStyle">
@@ -28,36 +47,9 @@
                     <div v-if="cell && cell.imageData" class="cell-remove" @click.stop="removeCellImage(idx)">✖</div>
                 </div>
             </div>
-
-            <!-- 图文模式 -->
-            <div v-else class="text-mode-wrapper">
-                <div 
-                    class="text-mode-layout"
-                    :class="{
-                        'mask-circle': maskShape === 'circle',
-                        'mask-round': maskShape === 'roundRect'
-                    }"
-                    :style="textLayoutBaseStyle"
-                >
-                    <div 
-                        v-for="(cell, idx) in cells" 
-                        :key="idx"
-                        class="preset-cell text-preset-cell"
-                        :class="{ 'cell-selected': selectedCellIndex === idx }"
-                        @click="selectCell(idx)"
-                    >
-                        <img v-if="cell && cell.imageData" :src="cell.imageData" :style="imageStyle">
-                        <div v-else class="cell-placeholder">
-                            <span>+</span>
-                            <span class="placeholder-text">点击选中</span>
-                        </div>
-                        <div v-if="cell && cell.imageData" class="cell-remove" @click.stop="removeCellImage(idx)">✖</div>
-                    </div>
-                </div>
-                <div class="text-area">
-                    <div class="poster-text">{{ posterText }}</div>
-                    <div class="poster-date">{{ formattedDate }}</div>
-                </div>
+            <div class="text-area">
+                <div class="poster-text">{{ posterText }}</div>
+                <div class="poster-date">{{ formattedDate }}</div>
             </div>
         </div>
     </div>
@@ -110,64 +102,39 @@ const subModeLibrary = {
 
 const isTextMode = computed(() => props.subModeId === 'text-simple');
 
-// 获取当前蒙版的 CSS 类名
-const maskClass = computed(() => {
-    if (props.maskShape === 'circle') return 'mask-circle';
-    if (props.maskShape === 'roundRect') return 'mask-round';
-    return '';
-});
-
-const canvasContainerStyle = computed(() => ({
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'auto',
-    backgroundColor: '#f5f7fa'
-}));
-
-const canvasInnerStyle = computed(() => {
-    const outerBorderSize = props.showOuterBorder ? props.spacing : 0;
-    const outerBorderColor = props.useTransparent ? 'transparent' : props.bgColor;
-    return {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '8px',
-        backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
-        boxShadow: props.showOuterBorder ? `0 0 0 ${outerBorderSize}px ${outerBorderColor}` : 'none',
-        transition: 'box-shadow 0.1s ease'
-    };
-});
-
+// 画布区域样式（包含背景色和外边框）
 const layoutStyle = computed(() => {
     if (isTextMode.value) return {};
     const layout = currentLayout.value;
     if (!layout) return {};
     const cellSize = 180;
+    const gap = props.spacing;
     return {
         display: 'grid',
         gridTemplateColumns: `repeat(${layout.cols}, ${cellSize}px)`,
         gridTemplateRows: `repeat(${layout.rows}, ${cellSize}px)`,
-        gap: `${props.spacing}px`,
+        gap: `${gap}px`,
         width: 'fit-content',
         height: 'fit-content',
-        margin: 0,
-        backgroundColor: 'transparent'
+        margin: '0 auto',
+        // 背景色：只应用在画布区域
+        backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
+        // 外边框：通过 box-shadow 实现（仅预览效果，导出时单独处理）
+        boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${props.useTransparent ? 'transparent' : props.bgColor}` : 'none'
     };
 });
 
-const textLayoutBaseStyle = computed(() => ({
+const textLayoutStyle = computed(() => ({
     width: '300px',
     height: '300px',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    margin: 0
+    margin: '20px',
+    borderRadius: '8px',
+    boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${props.useTransparent ? 'transparent' : props.bgColor}` : 'none'
 }));
 
 const imageStyle = computed(() => ({
@@ -198,7 +165,6 @@ const applyMask = (ctx, x, y, w, h) => {
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
         ctx.clip();
-        console.log('应用圆形蒙版裁剪');
     } else if (props.maskShape === 'roundRect') {
         const r = Math.min(props.cornerRadius, Math.min(w, h) / 2);
         ctx.beginPath();
@@ -213,7 +179,6 @@ const applyMask = (ctx, x, y, w, h) => {
         ctx.quadraticCurveTo(x, y, x + r, y);
         ctx.closePath();
         ctx.clip();
-        console.log('应用圆角矩形蒙版裁剪, 半径:', r);
     }
 };
 
@@ -297,12 +262,6 @@ const exportImage = async (useTransparent) => {
             applyMask(ctx, imgX, 0, imgW, imgH);
             ctx.drawImage(img, imgX, 0, imgW, imgH);
             ctx.restore();
-        } else {
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-            ctx.strokeRect(0, 0, props.canvasWidth, props.canvasHeight);
-            ctx.setLineDash([]);
         }
         
         ctx.fillStyle = props.posterTextColor;
@@ -349,7 +308,6 @@ const exportImage = async (useTransparent) => {
         ctx.fillStyle = '#f1f5f9';
         ctx.fillRect(x, y, cellSize, cellSize);
         
-        // 只在没有图片时绘制虚线边框
         if (!cell || !cell.imageData) {
             ctx.strokeStyle = '#cbd5e1';
             ctx.lineWidth = 2;
@@ -363,7 +321,6 @@ const exportImage = async (useTransparent) => {
             ctx.beginPath();
             ctx.rect(x, y, cellSize, cellSize);
             ctx.clip();
-            // 关键：应用蒙版裁剪
             applyMask(ctx, x, y, cellSize, cellSize);
             
             const img = await loadImage(cell.imageData);
@@ -434,8 +391,18 @@ watch(() => props.subModeId, (newId) => {
 </script>
 
 <style scoped>
+.preset-canvas {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    background-color: transparent;
+}
+
 .preset-layout {
-    margin: auto;
+    margin: 0 auto;
 }
 
 .text-mode-wrapper {
@@ -443,6 +410,16 @@ watch(() => props.subModeId, (newId) => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+}
+
+.text-mode-layout {
+    width: 300px;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin: 20px;
 }
 
 .preset-cell {
@@ -453,29 +430,24 @@ watch(() => props.subModeId, (newId) => {
     cursor: pointer;
     width: 100%;
     height: 100%;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
     background-color: #f1f5f9;
     border: 2px dashed #cbd5e1;
+    transition: all 0.2s ease;
 }
 
-/* 有图片时移除边框 */
-.preset-cell:has(img) {
-    border: none;
-}
-
-/* 圆形蒙版样式 */
+/* 圆形蒙版 */
 .mask-circle {
     border-radius: 50% !important;
     overflow: hidden !important;
 }
 
-/* 圆角矩形蒙版样式 */
+/* 圆角矩形蒙版 */
 .mask-round {
     border-radius: v-bind(cornerRadius + 'px') !important;
     overflow: hidden !important;
 }
 
+/* 选中状态 */
 .cell-selected {
     border: 3px solid #3b82f6 !important;
     background: #eff6ff !important;
