@@ -53,41 +53,36 @@ const renderCanvas = async () => {
         return;
     }
     
-    // 加载图片
     let loadedImages = [];
     for (const item of props.images) {
         const img = await loadImage(item.dataURL);
         loadedImages.push({ img, origW: item.width, origH: item.height });
     }
     
-    // 根据布局计算实际行数和列数
     let rows = props.gridRows, cols = props.gridCols;
     if (props.gridLayout === 'horizontal') { 
         rows = 1; 
-        cols = loadedImages.length;  // 所有图片排成一行
+        cols = loadedImages.length;
     }
     else if (props.gridLayout === 'vertical') { 
         cols = 1; 
-        rows = loadedImages.length;  // 所有图片排成一列
+        rows = loadedImages.length;
     }
     
-    // 显示所有图片，不需要切片
     const displayImages = loadedImages;
     
-    // 计算单元格尺寸
     let cellW = props.cellWidth;
     let cellH = props.cellHeight;
     
-    // 如果用户设置为0或空，则自动计算（基于图片原始尺寸）
     if (!cellW || cellW <= 0) {
         let maxW = 0;
         for (const item of displayImages) maxW = Math.max(maxW, item.origW);
-        cellW = maxW > 0 ? maxW : 300;  // 没有图片时默认300
+        cellW = maxW > 0 ? maxW : 300;
     }
     if (!cellH || cellH <= 0) {
         let maxH = 0;
         for (const item of displayImages) maxH = Math.max(maxH, item.origH);
-        cellH = maxH > 0 ? maxH : 185;  // 没有图片时默认185
+        cellH = maxH > 0 ? maxH : 185;
     }
     
     const originalWidth = cols * cellW + (cols - 1) * props.spacing;
@@ -102,8 +97,26 @@ const renderCanvas = async () => {
     canvas.height = Math.max(1, Math.ceil(canvasHeight));
     const ctx = canvas.getContext('2d');
     
-    if (props.useTransparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    // ✅ 填充整个画布（包括外边框区域）
+    if (props.useTransparent) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = props.bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    // ✅ 如果启用了外边框且非透明模式，绘制边框颜色（让边框更明显）
+    if (props.showOuterBorder && borderSize > 0 && !props.useTransparent) {
+        // 外边框已经通过 fillRect 填充了 bgColor，这里无需额外绘制
+        // 但如果希望边框有更明显的视觉效果，可以绘制一条内边框线
+        // 但当前 bgColor 填充已经覆盖了外边框区域，所以直接使用即可
+        // 补充：为了让边框更清晰，可以在内部内容周围绘制一条细线
+        ctx.save();
+        ctx.strokeStyle = props.bgColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(borderSize, borderSize, originalWidth, originalHeight);
+        ctx.restore();
+    }
     
     ctx.save();
     ctx.translate(borderSize, borderSize);
@@ -119,12 +132,10 @@ const renderCanvas = async () => {
         );
         
         ctx.save();
-        // 1. 先设置单元格裁剪区域
         ctx.beginPath();
         ctx.rect(cellX, cellY, cellW, cellH);
         ctx.clip();
         
-        // 2. 应用蒙版（基于单元格区域）
         if (props.maskShape !== 'none') {
             ctx.save();
             if (props.maskShape === 'circle') {
@@ -151,10 +162,8 @@ const renderCanvas = async () => {
             }
         }
         
-        // 3. 绘制图片
         ctx.drawImage(displayImages[i].img, cellX + offsetX, cellY + offsetY, drawW, drawH);
         
-        // 4. 恢复蒙版状态（如果有）
         if (props.maskShape !== 'none') {
             ctx.restore();
         }

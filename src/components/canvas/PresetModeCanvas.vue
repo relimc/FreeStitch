@@ -102,14 +102,12 @@ const subModeLibrary = {
 
 const isTextMode = computed(() => props.subModeId === 'text-simple');
 
-// 画布区域样式（内间距控制格子间距，外边框独立控制）
 const layoutStyle = computed(() => {
     if (isTextMode.value) return {};
     const layout = currentLayout.value;
     if (!layout) return {};
     const cellSize = 180;
     const gap = props.spacing;
-    // 外边框：值为0时不显示，大于0时显示
     const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
     return {
         display: 'grid',
@@ -158,32 +156,7 @@ const formattedDate = computed(() => {
     return '';
 });
 
-// 蒙版裁剪函数
-const applyMask = (ctx, x, y, w, h) => {
-    if (props.maskShape === 'circle') {
-        const centerX = x + w / 2;
-        const centerY = y + h / 2;
-        const radius = Math.min(w, h) / 2;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        ctx.clip();
-    } else if (props.maskShape === 'roundRect') {
-        const r = Math.min(props.cornerRadius, Math.min(w, h) / 2);
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
-        ctx.clip();
-    }
-};
-
+// 初始化布局
 const initLayout = (subId) => {
     const layout = subModeLibrary[subId];
     if (!layout) return;
@@ -235,11 +208,56 @@ const addImageToEmptyCell = (imageId, imageData) => {
     return true;
 };
 
-// 导出图片
+// ---------- 导出图片（透明背景修复 + 圆角蒙版） ----------
 const exportImage = async (useTransparent) => {
-    // 外边框：值为0时没有外边框
     const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
     
+    // 辅助函数：在给定区域应用蒙版裁剪（不保存/恢复状态，由调用者管理）
+    const applyMaskToCtx = (ctx, x, y, w, h) => {
+        if (props.maskShape === 'none') {
+            // 无蒙版时，用矩形裁剪防止图片溢出
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            return;
+        }
+        
+        if (props.maskShape === 'circle') {
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            const r = Math.min(w, h) / 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+            return;
+        }
+        
+        if (props.maskShape === 'roundRect') {
+            const radius = Math.min(props.cornerRadius || 0, Math.min(w, h) / 2);
+            if (radius <= 0) {
+                ctx.beginPath();
+                ctx.rect(x, y, w, h);
+                ctx.clip();
+                return;
+            }
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            ctx.lineTo(x + radius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.clip();
+            return;
+        }
+    };
+
+    // ---- 图文模式 ----
     if (isTextMode.value) {
         const canvas = document.createElement('canvas');
         canvas.width = props.canvasWidth + borderSize * 2;
@@ -252,6 +270,7 @@ const exportImage = async (useTransparent) => {
         ctx.save();
         ctx.translate(borderSize, borderSize);
         
+        // 绘制图片（如果存在）
         if (cells.value[0] && cells.value[0].imageData) {
             const img = await loadImage(cells.value[0].imageData);
             const imgH = props.canvasHeight * 0.7;
@@ -259,28 +278,29 @@ const exportImage = async (useTransparent) => {
             const imgX = (props.canvasWidth - imgW) / 2;
             
             ctx.save();
-            ctx.beginPath();
-            ctx.rect(imgX, 0, imgW, imgH);
-            ctx.clip();
-            applyMask(ctx, imgX, 0, imgW, imgH);
+            applyMaskToCtx(ctx, imgX, 0, imgW, imgH);
             ctx.drawImage(img, imgX, 0, imgW, imgH);
             ctx.restore();
         }
         
+        // 绘制文字（注意：文字在透明背景下也保留，用户可能需要）
         ctx.fillStyle = props.posterTextColor;
         ctx.font = `${props.posterFontSize}px "PingFang SC"`;
         ctx.textAlign = 'center';
-        ctx.fillText(props.posterText, props.canvasWidth / 2, props.canvasHeight - 50);
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(props.posterText, props.canvasWidth / 2, props.canvasHeight - 30);
         if (props.posterDateFormat !== 'none') {
             ctx.font = `14px sans-serif`;
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.fillText(formattedDate.value, props.canvasWidth / 2, props.canvasHeight - 20);
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(formattedDate.value, props.canvasWidth / 2, props.canvasHeight - 8);
         }
         
         ctx.restore();
         return canvas.toDataURL('image/png');
     }
-    
+
+    // ---- 网格预设模式 ----
     const layout = currentLayout.value;
     if (!layout) return null;
     
@@ -307,47 +327,53 @@ const exportImage = async (useTransparent) => {
         const x = col * (cellSize + gap);
         const y = row * (cellSize + gap);
         
-        ctx.fillStyle = '#f1f5f9';
-        ctx.fillRect(x, y, cellSize, cellSize);
-        
-        if (!cell || !cell.imageData) {
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-            ctx.strokeRect(x, y, cellSize, cellSize);
-            ctx.setLineDash([]);
+        // ✅ 仅在非透明模式下绘制灰色背景
+        if (!useTransparent) {
+            ctx.fillStyle = props.bgColor;
+            ctx.fillRect(x, y, cellSize, cellSize);
         }
         
         if (cell && cell.imageData) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(x, y, cellSize, cellSize);
-            ctx.clip();
-            applyMask(ctx, x, y, cellSize, cellSize);
-            
+            // 加载图片
             const img = await loadImage(cell.imageData);
+            
+            // 计算绘制尺寸
+            let drawW, drawH, offsetX, offsetY;
             if (props.fillMode === 'cover') {
                 const scale = Math.max(cellSize / img.width, cellSize / img.height);
-                const dw = img.width * scale;
-                const dh = img.height * scale;
-                const dx = x + (cellSize - dw) / 2;
-                const dy = y + (cellSize - dh) / 2;
-                ctx.drawImage(img, dx, dy, dw, dh);
-            } else {
+                drawW = img.width * scale;
+                drawH = img.height * scale;
+                offsetX = (cellSize - drawW) / 2;
+                offsetY = (cellSize - drawH) / 2;
+            } else { // contain
                 const scale = Math.min(cellSize / img.width, cellSize / img.height);
-                const dw = img.width * scale;
-                const dh = img.height * scale;
-                const dx = x + (cellSize - dw) / 2;
-                const dy = y + (cellSize - dh) / 2;
-                ctx.drawImage(img, dx, dy, dw, dh);
+                drawW = img.width * scale;
+                drawH = img.height * scale;
+                offsetX = (cellSize - drawW) / 2;
+                offsetY = (cellSize - drawH) / 2;
             }
+            
+            // 应用蒙版并绘制图片
+            ctx.save();
+            applyMaskToCtx(ctx, x, y, cellSize, cellSize);
+            ctx.drawImage(img, x + offsetX, y + offsetY, drawW, drawH);
             ctx.restore();
         } else {
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = `${Math.min(cellSize, cellSize) * 0.3}px "PingFang SC"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('+', x + cellSize / 2, y + cellSize / 2);
+            // ✅ 空单元格：仅在非透明模式下绘制虚线框和加号，透明模式下完全透明
+            if (!useTransparent) {
+                ctx.save();
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(x, y, cellSize, cellSize);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = `${Math.min(cellSize, cellSize) * 0.3}px "PingFang SC"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', x + cellSize / 2, y + cellSize / 2);
+                ctx.restore();
+            }
         }
     }
     
@@ -355,6 +381,7 @@ const exportImage = async (useTransparent) => {
     return canvas.toDataURL('image/png');
 };
 
+// 获取分辨率
 const getResolution = () => {
     if (isTextMode.value) {
         const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;

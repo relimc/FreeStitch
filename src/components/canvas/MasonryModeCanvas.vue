@@ -39,7 +39,6 @@ const renderCanvas = async () => {
         return;
     }
     
-    // 加载图片
     let loadedImages = [];
     for (const item of props.images) {
         const img = await loadImage(item.dataURL);
@@ -76,15 +75,19 @@ const renderCanvas = async () => {
     canvas.height = Math.max(1, Math.ceil(canvasHeight));
     const ctx = canvas.getContext('2d');
     
-    if (props.useTransparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    // ✅ 填充整个画布（包括外边框区域）
+    if (props.useTransparent) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = props.bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     
     ctx.save();
     ctx.translate(borderSize, borderSize);
     
     for (const p of positions) {
         ctx.save();
-        // 应用蒙版
         if (props.maskShape !== 'none') {
             if (props.maskShape === 'circle') {
                 const centerX = p.x + p.drawW / 2;
@@ -94,7 +97,7 @@ const renderCanvas = async () => {
                 ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
                 ctx.clip();
             } else if (props.maskShape === 'roundRect') {
-                const r = props.cornerRadius;
+                const r = Math.min(props.cornerRadius, Math.min(p.drawW, p.drawH) / 2);
                 ctx.beginPath();
                 ctx.moveTo(p.x + r, p.y);
                 ctx.lineTo(p.x + p.drawW - r, p.y);
