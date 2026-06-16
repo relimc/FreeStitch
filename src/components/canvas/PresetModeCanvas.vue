@@ -62,18 +62,18 @@ import { loadImage } from './utils/canvasHelpers.js';
 const props = defineProps({
     subModeId: { type: String, default: '' },
     spacing: { type: Number, default: 12 },
+    outerBorderSize: { type: Number, default: 0 },
     bgColor: { type: String, default: '#ffffff' },
     useTransparent: { type: Boolean, default: true },
     fillMode: { type: String, default: 'cover' },
-    showOuterBorder: { type: Boolean, default: false },
+    maskShape: { type: String, default: 'none' },
+    cornerRadius: { type: Number, default: 20 },
     posterText: { type: String, default: '美好时光' },
     posterDateFormat: { type: String, default: 'YYYY-MM-DD' },
     posterTextColor: { type: String, default: '#ffffff' },
     posterFontSize: { type: Number, default: 24 },
     canvasWidth: { type: Number, default: 800 },
-    canvasHeight: { type: Number, default: 600 },
-    maskShape: { type: String, default: 'none' },
-    cornerRadius: { type: Number, default: 20 }
+    canvasHeight: { type: Number, default: 600 }
 });
 
 const emit = defineEmits(['update:cells', 'select-cell']);
@@ -102,13 +102,15 @@ const subModeLibrary = {
 
 const isTextMode = computed(() => props.subModeId === 'text-simple');
 
-// 画布区域样式（包含背景色和外边框）
+// 画布区域样式（内间距控制格子间距，外边框独立控制）
 const layoutStyle = computed(() => {
     if (isTextMode.value) return {};
     const layout = currentLayout.value;
     if (!layout) return {};
     const cellSize = 180;
     const gap = props.spacing;
+    // 外边框：值为0时不显示，大于0时显示
+    const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
     return {
         display: 'grid',
         gridTemplateColumns: `repeat(${layout.cols}, ${cellSize}px)`,
@@ -117,25 +119,25 @@ const layoutStyle = computed(() => {
         width: 'fit-content',
         height: 'fit-content',
         margin: '0 auto',
-        // 背景色：只应用在画布区域
         backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
-        // 外边框：通过 box-shadow 实现（仅预览效果，导出时单独处理）
-        boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${props.useTransparent ? 'transparent' : props.bgColor}` : 'none'
+        boxShadow: borderSize > 0 ? `0 0 0 ${borderSize}px ${props.useTransparent ? 'transparent' : props.bgColor}` : 'none'
     };
 });
 
-const textLayoutStyle = computed(() => ({
-    width: '300px',
-    height: '300px',
-    backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    margin: '20px',
-    borderRadius: '8px',
-    boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${props.useTransparent ? 'transparent' : props.bgColor}` : 'none'
-}));
+const textLayoutStyle = computed(() => {
+    const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
+    return {
+        width: '300px',
+        height: '300px',
+        backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        margin: '20px',
+        boxShadow: borderSize > 0 ? `0 0 0 ${borderSize}px ${props.useTransparent ? 'transparent' : props.bgColor}` : 'none'
+    };
+});
 
 const imageStyle = computed(() => ({
     width: '100%',
@@ -156,7 +158,7 @@ const formattedDate = computed(() => {
     return '';
 });
 
-// 导出时的蒙版裁剪函数
+// 蒙版裁剪函数
 const applyMask = (ctx, x, y, w, h) => {
     if (props.maskShape === 'circle') {
         const centerX = x + w / 2;
@@ -235,7 +237,8 @@ const addImageToEmptyCell = (imageId, imageData) => {
 
 // 导出图片
 const exportImage = async (useTransparent) => {
-    const borderSize = props.showOuterBorder ? props.spacing : 0;
+    // 外边框：值为0时没有外边框
+    const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
     
     if (isTextMode.value) {
         const canvas = document.createElement('canvas');
@@ -304,7 +307,6 @@ const exportImage = async (useTransparent) => {
         const x = col * (cellSize + gap);
         const y = row * (cellSize + gap);
         
-        // 绘制格子背景
         ctx.fillStyle = '#f1f5f9';
         ctx.fillRect(x, y, cellSize, cellSize);
         
@@ -355,7 +357,7 @@ const exportImage = async (useTransparent) => {
 
 const getResolution = () => {
     if (isTextMode.value) {
-        const borderSize = props.showOuterBorder ? props.spacing : 0;
+        const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
         return {
             width: props.canvasWidth + borderSize * 2,
             height: props.canvasHeight + borderSize * 2
@@ -365,7 +367,7 @@ const getResolution = () => {
     if (!layout) return { width: 0, height: 0 };
     const cellSize = 180;
     const gap = props.spacing;
-    const borderSize = props.showOuterBorder ? props.spacing : 0;
+    const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
     return {
         width: layout.cols * cellSize + (layout.cols - 1) * gap + borderSize * 2,
         height: layout.rows * cellSize + (layout.rows - 1) * gap + borderSize * 2
@@ -435,19 +437,16 @@ watch(() => props.subModeId, (newId) => {
     transition: all 0.2s ease;
 }
 
-/* 圆形蒙版 */
 .mask-circle {
     border-radius: 50% !important;
     overflow: hidden !important;
 }
 
-/* 圆角矩形蒙版 */
 .mask-round {
     border-radius: v-bind(cornerRadius + 'px') !important;
     overflow: hidden !important;
 }
 
-/* 选中状态 */
 .cell-selected {
     border: 3px solid #3b82f6 !important;
     background: #eff6ff !important;

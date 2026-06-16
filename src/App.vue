@@ -40,6 +40,8 @@
             <ControlBar 
                 :mode="mode"
                 :spacing="spacing"
+                :outerBorderSize="outerBorderSize"
+                :showOuterBorder="showOuterBorder"
                 :bgColor="bgColor"
                 :useTransparent="useTransparent"
                 :canvasWidth="canvasWidth"
@@ -55,26 +57,17 @@
                 :maskShape="maskShape"
                 :cornerRadius="cornerRadius"
                 :presetTemplateId="presetTemplateId"
-                :showOuterBorder="showOuterBorder"
-                v-model:presetGridType="presetGridType"
-                v-model:presetSubModeId="presetSubModeId"
+                :presetGridType="presetGridType"
+                :presetSubModeId="presetSubModeId"
                 :posterText="posterText"
                 :posterDateFormat="posterDateFormat"
                 :posterTextColor="posterTextColor"
                 :posterFontSize="posterFontSize"
                 :posterTextPosition="posterTextPosition"
-                :presetGridType="presetGridType"
-                :presetSubModeId="presetSubModeId"
-                @update:presetGridType="presetGridType = $event"
-                @update:presetSubModeId="presetSubModeId = $event"
-                @update-poster-text="posterText = $event"
-                @update-poster-date-format="posterDateFormat = $event"
-                @update-poster-text-color="posterTextColor = $event"
-                @update-poster-font-size="posterFontSize = $event"
-                @update-poster-text-position="posterTextPosition = $event"
-                @select-sub-mode="presetSubModeId = $event"
                 @mode-change="mode = $event"
                 @spacing-change="spacing = $event"
+                @outer-border-change="outerBorderSize = $event"
+                @toggle-outer-border="showOuterBorder = $event"
                 @bg-color-change="bgColor = $event"
                 @toggle-transparent="useTransparent = $event"
                 @update-canvas-width="canvasWidth = $event"
@@ -89,8 +82,14 @@
                 @update-fill-mode="fillMode = $event"
                 @update-mask-shape="maskShape = $event"
                 @update-corner-radius="cornerRadius = $event"
-                @select-preset-template="presetTemplateId = $event"
-                @update-show-outer-border="showOuterBorder = $event"
+                @update:presetGridType="presetGridType = $event"
+                @update:presetSubModeId="presetSubModeId = $event"
+                @select-sub-mode="presetSubModeId = $event"
+                @update-poster-text="posterText = $event"
+                @update-poster-date-format="posterDateFormat = $event"
+                @update-poster-text-color="posterTextColor = $event"
+                @update-poster-font-size="posterFontSize = $event"
+                @update-poster-text-position="posterTextPosition = $event"
                 @clear-canvas="clearCanvas"
                 @export="handleExport"
             />
@@ -110,6 +109,7 @@
                     :canvasWidth="canvasWidth"
                     :canvasHeight="canvasHeight"
                     :showOuterBorder="showOuterBorder"
+                    :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
                 />
@@ -132,6 +132,7 @@
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
                     :showOuterBorder="showOuterBorder"
+                    :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
                 />
@@ -149,30 +150,32 @@
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
                     :showOuterBorder="showOuterBorder"
+                    :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
                 />
                 
                 <!-- 预设模式 -->
                 <PresetModeCanvas 
+                    v-else-if="mode === 'preset'"
                     ref="presetCanvasRef"
                     :subModeId="presetSubModeId"
+                    :spacing="spacing"
+                    :outerBorderSize="outerBorderSize"
+                    :showOuterBorder="showOuterBorder"
+                    :bgColor="bgColor"
+                    :useTransparent="useTransparent"
+                    :fillMode="fillMode"
+                    :maskShape="maskShape"
+                    :cornerRadius="cornerRadius"
                     :posterText="posterText"
                     :posterDateFormat="posterDateFormat"
                     :posterTextColor="posterTextColor"
                     :posterFontSize="posterFontSize"
-                    :posterTextPosition="posterTextPosition"
-                    :spacing="spacing"
-                    :bgColor="bgColor"
-                    :useTransparent="useTransparent"
-                    :fillMode="fillMode"
-                    :showOuterBorder="showOuterBorder"
                     :canvasWidth="canvasWidth"
                     :canvasHeight="canvasHeight"
                     @update:cells="presetCells = $event"
-                    @select-cell="selectedPresetCellIndex = $event"
-                    :maskShape="maskShape"
-                    :cornerRadius="cornerRadius"
+                    @select-cell="setSelectedPresetCell"
                 />
             </div>
             <!-- 分辨率显示浮层 -->
@@ -197,6 +200,8 @@ const canvasImages = ref([]);
 const selectedImageIds = ref([]);
 const mode = ref('preset');
 const spacing = ref(12);
+const outerBorderSize = ref(0);
+const showOuterBorder = ref(false);
 const bgColor = ref('#ffffff');
 const useTransparent = ref(true);
 const canvasWidth = ref(800);
@@ -213,10 +218,14 @@ const maskShape = ref('none');
 const cornerRadius = ref(20);
 const presetTemplateId = ref('grid-3x3');
 const presetCells = ref([]);
-const showOuterBorder = ref(false);
 const currentResolution = ref({ width: 0, height: 0 });
 const presetGridType = ref(2);
-const presetSubModeId = ref('2-horizontal'); // 默认横向双拼
+const presetSubModeId = ref('2-horizontal');
+const posterText = ref('美好时光');
+const posterDateFormat = ref('YYYY-MM-DD');
+const posterTextColor = ref('#ffffff');
+const posterFontSize = ref(24);
+const posterTextPosition = ref('bottom-center');
 let nextId = 1;
 
 // 画布组件的 ref
@@ -225,12 +234,6 @@ const gridCanvasRef = ref(null);
 const masonryCanvasRef = ref(null);
 const presetCanvasRef = ref(null);
 const selectedPresetCellIndex = ref(-1);
-
-const posterText = ref('美好时光');
-const posterDateFormat = ref('YYYY-MM-DD');
-const posterTextColor = ref('#ffffff');
-const posterFontSize = ref(24);
-const posterTextPosition = ref('bottom-center');  // 文字位置，如果也需要
 
 // 当前活动画布组件的 ref
 const activeCanvasRef = computed(() => {
@@ -246,7 +249,6 @@ provide('galleryImages', galleryImages);
 
 // 设置当前选中的预设格子
 const setSelectedPresetCell = (index) => {
-    console.log('选中格子索引:', index);
     selectedPresetCellIndex.value = index;
 };
 
@@ -368,7 +370,6 @@ const handleExport = async () => {
     }
     
     if (mode.value === 'preset') {
-        // 调用子组件的 hasImages 方法
         if (!canvasRef.hasImages || !canvasRef.hasImages()) {
             alert('请先填充预设模板的图片');
             return;
@@ -387,15 +388,16 @@ const handleExport = async () => {
     }
 };
 
-// ========== 唯一的一个 watch，监听所有参数变化 ==========
-watch([mode, spacing, bgColor, useTransparent, canvasImages, 
+// 监听参数变化更新分辨率
+watch([mode, spacing, outerBorderSize, showOuterBorder, bgColor, useTransparent, canvasImages,
         gridRows, gridCols, gridLayout, masonryCols, masonryColumnWidth,
-        cellWidth, cellHeight, fillMode, presetTemplateId, presetCells,
-        showOuterBorder, maskShape, cornerRadius], () => {
+        cellWidth, cellHeight, fillMode, maskShape, cornerRadius,
+        presetGridType, presetSubModeId, presetCells, posterText, posterDateFormat,
+        posterTextColor, posterFontSize, posterTextPosition], () => {
     nextTick(() => updateResolution());
 }, { deep: true, immediate: true });
 
-// ========== 监听模式切换，确保画布组件完全渲染 ==========
+// 监听模式切换，确保画布组件完全渲染
 watch(() => mode.value, async () => {
     await nextTick();
     setTimeout(() => {

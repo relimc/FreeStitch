@@ -12,17 +12,45 @@
             </button>
         </div>
         
-        <!-- 通用参数：间距（内边距）+ 外框 -->
+        <!-- 通用参数：内间距 + 外边框 + 背景 -->
         <div class="param-group">
+            <!-- 内间距（图片之间的间距） -->
             <div class="param-row">
-                <span class="param-label">内边距</span>
-                <input type="range" :value="spacing" min="0" max="50" @input="$emit('spacing-change', parseInt($event.target.value))">
-                <span class="param-value">{{ spacing }}px</span>
-                <label class="border-checkbox">
-                    <input type="checkbox" :checked="showOuterBorder" @change="$emit('update-show-outer-border', $event.target.checked)">
-                    <span>外框</span>
-                </label>
+                <span class="param-label">内间距</span>
+                <input type="range" :value="spacing" min="0" max="200" @input="$emit('spacing-change', parseInt($event.target.value))">
+                <div class="number-input-wrapper">
+                    <input 
+                        type="number" 
+                        :value="spacing" 
+                        min="0" 
+                        max="200" 
+                        step="1"
+                        @input="$emit('spacing-change', parseInt($event.target.value))"
+                        @blur="validateSpacing"
+                    >
+                    <span>px</span>
+                </div>
             </div>
+            
+            <!-- 外边框（画布外围边框） -->
+            <div class="param-row">
+                <span class="param-label">外边框</span>
+                <input type="range" :value="outerBorderSize" min="0" max="200" @input="$emit('outer-border-change', parseInt($event.target.value))">
+                <div class="number-input-wrapper">
+                    <input 
+                        type="number" 
+                        :value="outerBorderSize" 
+                        min="0" 
+                        max="200" 
+                        step="1"
+                        @input="$emit('outer-border-change', parseInt($event.target.value))"
+                        @blur="validateOuterBorder"
+                    >
+                    <span>px</span>
+                </div>
+            </div>
+            
+            <!-- 背景色 -->
             <div class="param-row">
                 <span class="param-label">背景</span>
                 <div class="bg-controls">
@@ -66,13 +94,17 @@
                         <div v-if="mode === 'free'" class="param-group-inline">
                             <div class="param-row">
                                 <span class="param-label">画布宽</span>
-                                <input type="number" :value="canvasWidth" @input="$emit('update-canvas-width', parseInt($event.target.value))" min="100" step="10">
-                                <span>px</span>
+                                <div class="number-input-wrapper">
+                                    <input type="number" :value="canvasWidth" min="100" step="10" @input="$emit('update-canvas-width', parseInt($event.target.value))">
+                                    <span>px</span>
+                                </div>
                             </div>
                             <div class="param-row">
                                 <span class="param-label">画布高</span>
-                                <input type="number" :value="canvasHeight" @input="$emit('update-canvas-height', parseInt($event.target.value))" min="100" step="10">
-                                <span>px</span>
+                                <div class="number-input-wrapper">
+                                    <input type="number" :value="canvasHeight" min="100" step="10" @input="$emit('update-canvas-height', parseInt($event.target.value))">
+                                    <span>px</span>
+                                </div>
                             </div>
                         </div>
                         
@@ -100,6 +132,7 @@
                                     <input type="number" :value="cellWidth" @input="$emit('update-cell-width', parseInt($event.target.value))" min="0" step="10" placeholder="自动">
                                     <span>×</span>
                                     <input type="number" :value="cellHeight" @input="$emit('update-cell-height', parseInt($event.target.value))" min="0" step="10" placeholder="自动">
+                                    <span>px</span>
                                 </div>
                             </div>
                         </div>
@@ -108,18 +141,22 @@
                         <div v-if="mode === 'masonry'" class="param-group-inline">
                             <div class="param-row">
                                 <span class="param-label">列数</span>
-                                <input type="number" :value="masonryCols" @input="$emit('update-masonry-cols', parseInt($event.target.value))" min="1" max="6">
+                                <div class="number-input-wrapper">
+                                    <input type="number" :value="masonryCols" min="1" max="6" step="1" @input="$emit('update-masonry-cols', parseInt($event.target.value))">
+                                    <span>列</span>
+                                </div>
                             </div>
                             <div class="param-row">
                                 <span class="param-label">列宽</span>
-                                <input type="number" :value="masonryColumnWidth" @input="$emit('update-masonry-column-width', parseInt($event.target.value))" min="50" step="10">
-                                <span>px</span>
+                                <div class="number-input-wrapper">
+                                    <input type="number" :value="masonryColumnWidth" min="50" step="10" @input="$emit('update-masonry-column-width', parseInt($event.target.value))">
+                                    <span>px</span>
+                                </div>
                             </div>
                         </div>
                         
-                        <!-- 预设模式参数（重构后） -->
+                        <!-- 预设模式参数 -->
                         <div v-if="mode === 'preset'" class="param-group-inline">
-                            <!-- 宫格类型选择 -->
                             <div class="preset-category">
                                 <div class="category-title">选择宫格类型</div>
                                 <div class="category-buttons">
@@ -140,7 +177,6 @@
                                 </div>
                             </div>
                             
-                            <!-- 子模式选择（根据宫格类型动态显示） -->
                             <div v-if="currentSubModes.length" class="preset-submode">
                                 <div class="submode-title">选择布局</div>
                                 <div class="submode-buttons">
@@ -156,12 +192,14 @@
                             </div>
                         </div>
                         
-                        <!-- 高级选项：圆角半径和填充方式 -->
                         <div class="param-divider"></div>
                         <div v-if="maskShape === 'roundRect'" class="param-row">
                             <span class="param-label">圆角半径</span>
                             <input type="range" :value="cornerRadius" min="0" max="100" step="1" @input="$emit('update-corner-radius', parseInt($event.target.value))">
-                            <span class="param-value">{{ cornerRadius }}px</span>
+                            <div class="number-input-wrapper">
+                                <input type="number" :value="cornerRadius" min="0" max="100" step="1" @input="$emit('update-corner-radius', parseInt($event.target.value))">
+                                <span>px</span>
+                            </div>
                         </div>
                         <div class="param-row">
                             <span class="param-label">填充方式</span>
@@ -186,7 +224,6 @@
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 
-// 定义模型（双向绑定）
 const emit = defineEmits([
     'mode-change', 'spacing-change', 'bg-color-change', 'toggle-transparent',
     'update-canvas-width', 'update-canvas-height',
@@ -194,16 +231,16 @@ const emit = defineEmits([
     'update-masonry-cols', 'update-masonry-column-width',
     'update-cell-width', 'update-cell-height', 'update-fill-mode',
     'update-mask-shape', 'update-corner-radius',
-    'select-preset-template', 'update-show-outer-border',
     'clear-canvas', 'export',
     'select-sub-mode',
-    'update:presetGridType',
-    'update:presetSubModeId'
+    'update:presetGridType', 'update:presetSubModeId',
+    'outer-border-change'
 ]);
 
 const props = defineProps({
     mode: { type: String, default: 'preset' },
     spacing: { type: Number, default: 12 },
+    outerBorderSize: { type: Number, default: 0 },
     bgColor: { type: String, default: '#ffffff' },
     useTransparent: { type: Boolean, default: true },
     canvasWidth: { type: Number, default: 800 },
@@ -218,63 +255,77 @@ const props = defineProps({
     fillMode: { type: String, default: 'cover' },
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
-    presetTemplateId: { type: String, default: 'grid-3x3' },
-    showOuterBorder: { type: Boolean, default: false },
-    // 新增预设模式相关props
     presetGridType: { type: [Number, String], default: 2 },
     presetSubModeId: { type: String, default: '2-horizontal' }
 });
 
-// 子模式库
+// 验证输入值
+const validateSpacing = (e) => {
+    let val = parseInt(e.target.value);
+    if (isNaN(val)) val = 0;
+    if (val < 0) val = 0;
+    if (val > 200) val = 200;
+    if (val !== props.spacing) {
+        emit('spacing-change', val);
+    }
+};
+
+const validateOuterBorder = (e) => {
+    let val = parseInt(e.target.value);
+    if (isNaN(val)) val = 0;
+    if (val < 0) val = 0;
+    if (val > 200) val = 200;
+    if (val !== props.outerBorderSize) {
+        emit('outer-border-change', val);
+    }
+};
+
 const subModeLibrary = {
     2: [
-        { id: '2-horizontal', name: '横向双拼', layout: { rows: 1, cols: 2, cells: 2 } },
-        { id: '2-vertical', name: '纵向双拼', layout: { rows: 2, cols: 1, cells: 2 } }
+        { id: '2-horizontal', name: '横向双拼' },
+        { id: '2-vertical', name: '纵向双拼' }
     ],
     3: [
-        { id: '3-horizontal', name: '横向三拼', layout: { rows: 1, cols: 3, cells: 3 } },
-        { id: '3-vertical', name: '纵向三拼', layout: { rows: 3, cols: 1, cells: 3 } }
+        { id: '3-horizontal', name: '横向三拼' },
+        { id: '3-vertical', name: '纵向三拼' }
     ],
     4: [
-        { id: '4-grid', name: '2x2网格', layout: { rows: 2, cols: 2, cells: 4 } },
-        { id: '4-horizontal', name: '横向四拼', layout: { rows: 1, cols: 4, cells: 4 } },
-        { id: '4-vertical', name: '纵向四拼', layout: { rows: 4, cols: 1, cells: 4 } }
+        { id: '4-grid', name: '2x2网格' },
+        { id: '4-horizontal', name: '横向四拼' },
+        { id: '4-vertical', name: '纵向四拼' }
     ],
     5: [
-        { id: '5-2x3', name: '2+3布局', layout: { rows: 2, cols: 3, cells: 5 } }
+        { id: '5-2x3', name: '2+3布局' }
     ],
     6: [
-        { id: '6-2x3', name: '2x3网格', layout: { rows: 2, cols: 3, cells: 6 } },
-        { id: '6-3x2', name: '3x2网格', layout: { rows: 3, cols: 2, cells: 6 } }
+        { id: '6-2x3', name: '2x3网格' },
+        { id: '6-3x2', name: '3x2网格' }
     ],
     7: [
-        { id: '7-1-3-3', name: '1+3+3布局', layout: { rows: 3, cols: 3, cells: 7 } }
+        { id: '7-1-3-3', name: '1+3+3布局' }
     ],
     8: [
-        { id: '8-2x4', name: '2x4网格', layout: { rows: 2, cols: 4, cells: 8 } },
-        { id: '8-4x2', name: '4x2网格', layout: { rows: 4, cols: 2, cells: 8 } }
+        { id: '8-2x4', name: '2x4网格' },
+        { id: '8-4x2', name: '4x2网格' }
     ],
     9: [
-        { id: '9-grid', name: '3x3网格', layout: { rows: 3, cols: 3, cells: 9 } }
+        { id: '9-grid', name: '3x3网格' }
     ],
     text: [
-        { id: 'text-simple', name: '图文模式', layout: { type: 'text', cells: 1 } }
+        { id: 'text-simple', name: '图文模式' }
     ]
 };
 
 const currentSubModes = computed(() => subModeLibrary[props.presetGridType] || []);
 
-// 选择宫格类型
 const selectGridType = (type) => {
     emit('update:presetGridType', type);
-    // 自动选中第一个子模式
     const subs = subModeLibrary[type];
     if (subs && subs.length) {
         emit('update:presetSubModeId', subs[0].id);
     }
 };
 
-// 其他原有代码（模式选项等）
 const modeOptions = [
     { value: 'preset', label: '预设', icon: '🎨' },
     { value: 'free', label: '自由', icon: '✨' },
@@ -287,7 +338,7 @@ const currentModeLabel = computed(() => {
     return opt ? opt.label : '预设';
 });
 
-// 高级面板控制（保持不变）
+// 高级面板控制
 const showAdvancedPanel = ref(false);
 const keepPanelOpen = ref(false);
 const advancedTriggerRef = ref(null);
@@ -495,14 +546,6 @@ const onColorChange = (e) => {
     margin-left: auto;
     width: 120px;
 }
-.border-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    font-size: 0.7rem;
-    margin-left: 8px;
-}
 .advanced-container {
     position: relative;
 }
@@ -554,12 +597,25 @@ const onColorChange = (e) => {
     align-items: center;
     gap: 6px;
 }
+.number-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.number-input-wrapper input {
+    width: 60px;
+    text-align: center;
+}
 input, select {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     padding: 6px 10px;
     border-radius: 8px;
     font-size: 0.7rem;
+}
+input[type="range"] {
+    flex: 1;
+    min-width: 100px;
 }
 .preset-category {
     margin-bottom: 16px;
