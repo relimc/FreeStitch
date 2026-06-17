@@ -15,37 +15,31 @@
         <!-- 通用参数：内间距 + 外边框 + 背景 -->
         <div class="param-group">
             <!-- 内间距（图片之间的间距） -->
-            <div class="param-row">
+            <div class="param-row" :class="{ 'param-disabled': mode === 'free' }">
                 <span class="param-label">内间距</span>
-                <input type="range" :value="spacing" min="0" max="200" @input="$emit('spacing-change', parseInt($event.target.value))">
+                <input type="range" :value="spacing" min="0" max="200" 
+                    @input="$emit('spacing-change', parseInt($event.target.value))"
+                    :disabled="mode === 'free'">
                 <div class="number-input-wrapper">
-                    <input 
-                        type="number" 
-                        :value="spacing" 
-                        min="0" 
-                        max="200" 
-                        step="1"
+                    <input type="number" :value="spacing" min="0" max="200" step="1"
                         @input="$emit('spacing-change', parseInt($event.target.value))"
                         @blur="validateSpacing"
-                    >
+                        :disabled="mode === 'free'">
                     <span>px</span>
                 </div>
             </div>
             
             <!-- 外边框（画布外围边框） -->
-            <div class="param-row">
+            <div class="param-row" :class="{ 'param-disabled': mode === 'free' }">
                 <span class="param-label">外边框</span>
-                <input type="range" :value="outerBorderSize" min="0" max="200" @input="$emit('outer-border-change', parseInt($event.target.value))">
+                <input type="range" :value="outerBorderSize" min="0" max="200" 
+                    @input="$emit('outer-border-change', parseInt($event.target.value))"
+                    :disabled="mode === 'free'">
                 <div class="number-input-wrapper">
-                    <input 
-                        type="number" 
-                        :value="outerBorderSize" 
-                        min="0" 
-                        max="200" 
-                        step="1"
+                    <input type="number" :value="outerBorderSize" min="0" max="200" step="1"
                         @input="$emit('outer-border-change', parseInt($event.target.value))"
                         @blur="validateOuterBorder"
-                    >
+                        :disabled="mode === 'free'">
                     <span>px</span>
                 </div>
             </div>
@@ -687,5 +681,9 @@ input[type="range"] {
 }
 .panel-body::-webkit-scrollbar {
     width: 6px;
+}
+.param-disabled {
+    opacity: 0.5;
+    pointer-events: none; /* 可选，禁止鼠标操作 */
 }
 </style>

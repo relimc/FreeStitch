@@ -21,156 +21,171 @@ const props = defineProps({
     fillMode: { type: String, default: 'cover' },
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
-    showOuterBorder: { type: Boolean, default: false }
+    outerBorderSize: { type: Number, default: 0 }   // 仅保留外边框尺寸
 });
 
 const canvasRef = ref(null);
 const containerRef = ref(null);
 
 const getResolution = () => {
-    // 直接返回当前画布的实际尺寸（同步）
     const canvas = canvasRef.value;
     if (canvas && canvas.width > 0 && canvas.height > 0) {
         return { width: canvas.width, height: canvas.height };
     }
-    // 降级：返回默认值，调用方会再次尝试
     return { width: 600, height: 400 };
 };
 
 const renderCanvas = async () => {
-    if (props.images.length === 0) {
-        const canvas = canvasRef.value;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        canvas.width = 600;
-        canvas.height = 400;
-        if (props.useTransparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
-        else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '14px system-ui';
-        ctx.textAlign = 'center';
-        ctx.fillText('请从左侧添加图片', canvas.width / 2, canvas.height / 2);
-        return;
-    }
-    
-    let loadedImages = [];
-    for (const item of props.images) {
-        const img = await loadImage(item.dataURL);
-        loadedImages.push({ img, origW: item.width, origH: item.height });
-    }
-    
+    // 调试日志（可删除）
+    console.log('outerBorderSize:', props.outerBorderSize, 'useTransparent:', props.useTransparent);
+    const canvas = canvasRef.value;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // 1. 确定行列数
     let rows = props.gridRows, cols = props.gridCols;
-    if (props.gridLayout === 'horizontal') { 
-        rows = 1; 
-        cols = loadedImages.length;
-    }
-    else if (props.gridLayout === 'vertical') { 
-        cols = 1; 
-        rows = loadedImages.length;
-    }
-    
-    const displayImages = loadedImages;
-    
+    if (props.gridLayout === 'horizontal') { rows = 1; cols = Math.max(props.gridCols, 1); }
+    else if (props.gridLayout === 'vertical') { cols = 1; rows = Math.max(props.gridRows, 1); }
+
+    // 2. 单元格尺寸
     let cellW = props.cellWidth;
     let cellH = props.cellHeight;
-    
-    if (!cellW || cellW <= 0) {
-        let maxW = 0;
-        for (const item of displayImages) maxW = Math.max(maxW, item.origW);
-        cellW = maxW > 0 ? maxW : 300;
+    if (!cellW || cellW <= 0) cellW = 200;
+    if (!cellH || cellH <= 0) cellH = 200;
+
+    // 3. 加载图片
+    let loadedImages = [];
+    let hasImages = props.images && props.images.length > 0;
+    if (hasImages) {
+        for (const item of props.images) {
+            const img = await loadImage(item.dataURL);
+            loadedImages.push({ img, origW: item.width, origH: item.height });
+        }
+        if (!props.cellWidth || props.cellWidth <= 0) {
+            let maxW = 0;
+            for (const item of loadedImages) maxW = Math.max(maxW, item.origW);
+            cellW = maxW > 0 ? maxW : 200;
+        }
+        if (!props.cellHeight || props.cellHeight <= 0) {
+            let maxH = 0;
+            for (const item of loadedImages) maxH = Math.max(maxH, item.origH);
+            cellH = maxH > 0 ? maxH : 200;
+        }
+        if (props.gridLayout === 'horizontal') {
+            rows = 1;
+            cols = loadedImages.length;
+        } else if (props.gridLayout === 'vertical') {
+            cols = 1;
+            rows = loadedImages.length;
+        }
     }
-    if (!cellH || cellH <= 0) {
-        let maxH = 0;
-        for (const item of displayImages) maxH = Math.max(maxH, item.origH);
-        cellH = maxH > 0 ? maxH : 185;
-    }
-    
-    const originalWidth = cols * cellW + (cols - 1) * props.spacing;
-    const originalHeight = rows * cellH + (rows - 1) * props.spacing;
-    
-    const borderSize = props.showOuterBorder ? props.spacing : 0;
-    const canvasWidth = originalWidth + borderSize * 2;
-    const canvasHeight = originalHeight + borderSize * 2;
-    
-    const canvas = canvasRef.value;
+
+    // 4. 计算画布尺寸（外边框直接使用 outerBorderSize，无需开关）
+    const gap = props.spacing;
+    const borderSize = Math.max(0, props.outerBorderSize); // 直接使用，0 表示无边框
+    const contentWidth = cols * cellW + (cols - 1) * gap;
+    const contentHeight = rows * cellH + (rows - 1) * gap;
+    const canvasWidth = contentWidth + borderSize * 2;
+    const canvasHeight = contentHeight + borderSize * 2;
+
     canvas.width = Math.max(1, Math.ceil(canvasWidth));
     canvas.height = Math.max(1, Math.ceil(canvasHeight));
-    const ctx = canvas.getContext('2d');
-    
-    // ✅ 填充整个画布（包括外边框区域）
+
+    // 清空/填充背景（整个画布）
     if (props.useTransparent) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     } else {
         ctx.fillStyle = props.bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-    
-    // ✅ 如果启用了外边框且非透明模式，绘制边框颜色（让边框更明显）
-    if (props.showOuterBorder && borderSize > 0 && !props.useTransparent) {
-        // 外边框已经通过 fillRect 填充了 bgColor，这里无需额外绘制
-        // 但如果希望边框有更明显的视觉效果，可以绘制一条内边框线
-        // 但当前 bgColor 填充已经覆盖了外边框区域，所以直接使用即可
-        // 补充：为了让边框更清晰，可以在内部内容周围绘制一条细线
-        ctx.save();
-        ctx.strokeStyle = props.bgColor;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(borderSize, borderSize, originalWidth, originalHeight);
-        ctx.restore();
-    }
-    
+
     ctx.save();
     ctx.translate(borderSize, borderSize);
-    
-    for (let i = 0; i < displayImages.length; i++) {
-        const row = Math.floor(i / cols), col = i % cols;
-        const cellX = col * (cellW + props.spacing);
-        const cellY = row * (cellH + props.spacing);
-        const { drawW, drawH, offsetX, offsetY } = calculateFit(
-            displayImages[i].origW, displayImages[i].origH,
-            cellW, cellH,
-            props.fillMode
-        );
-        
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(cellX, cellY, cellW, cellH);
-        ctx.clip();
-        
-        if (props.maskShape !== 'none') {
-            ctx.save();
-            if (props.maskShape === 'circle') {
-                const centerX = cellX + cellW / 2;
-                const centerY = cellY + cellH / 2;
-                const radius = Math.min(cellW, cellH) / 2;
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                ctx.clip();
-            } else if (props.maskShape === 'roundRect') {
-                const r = Math.min(props.cornerRadius, Math.min(cellW, cellH) / 2);
-                ctx.beginPath();
-                ctx.moveTo(cellX + r, cellY);
-                ctx.lineTo(cellX + cellW - r, cellY);
-                ctx.quadraticCurveTo(cellX + cellW, cellY, cellX + cellW, cellY + r);
-                ctx.lineTo(cellX + cellW, cellY + cellH - r);
-                ctx.quadraticCurveTo(cellX + cellW, cellY + cellH, cellX + cellW - r, cellY + cellH);
-                ctx.lineTo(cellX + r, cellY + cellH);
-                ctx.quadraticCurveTo(cellX, cellY + cellH, cellX, cellY + cellH - r);
-                ctx.lineTo(cellX, cellY + r);
-                ctx.quadraticCurveTo(cellX, cellY, cellX + r, cellY);
-                ctx.closePath();
-                ctx.clip();
-            }
+
+    // 5. 绘制网格内容
+    const totalCells = rows * cols;
+    for (let i = 0; i < totalCells; i++) {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const x = col * (cellW + gap);
+        const y = row * (cellH + gap);
+
+        if (!props.useTransparent) {
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillRect(x, y, cellW, cellH);
         }
-        
-        ctx.drawImage(displayImages[i].img, cellX + offsetX, cellY + offsetY, drawW, drawH);
-        
-        if (props.maskShape !== 'none') {
+
+        const imgData = (hasImages && i < loadedImages.length) ? loadedImages[i] : null;
+
+        if (imgData) {
+            const { drawW, drawH, offsetX, offsetY } = calculateFit(
+                imgData.origW, imgData.origH,
+                cellW, cellH,
+                props.fillMode
+            );
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, cellW, cellH);
+            ctx.clip();
+
+            if (props.maskShape !== 'none') {
+                ctx.save();
+                if (props.maskShape === 'circle') {
+                    const cx = x + cellW / 2;
+                    const cy = y + cellH / 2;
+                    const r = Math.min(cellW, cellH) / 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.clip();
+                } else if (props.maskShape === 'roundRect') {
+                    const radius = Math.min(props.cornerRadius, Math.min(cellW, cellH) / 2);
+                    ctx.beginPath();
+                    ctx.moveTo(x + radius, y);
+                    ctx.lineTo(x + cellW - radius, y);
+                    ctx.quadraticCurveTo(x + cellW, y, x + cellW, y + radius);
+                    ctx.lineTo(x + cellW, y + cellH - radius);
+                    ctx.quadraticCurveTo(x + cellW, y + cellH, x + cellW - radius, y + cellH);
+                    ctx.lineTo(x + radius, y + cellH);
+                    ctx.quadraticCurveTo(x, y + cellH, x, y + cellH - radius);
+                    ctx.lineTo(x, y + radius);
+                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.closePath();
+                    ctx.clip();
+                }
+            }
+
+            ctx.drawImage(imgData.img, x + offsetX, y + offsetY, drawW, drawH);
+
+            if (props.maskShape !== 'none') ctx.restore();
+            ctx.restore();
+        } else {
+            ctx.save();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(x, y, cellW, cellH);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = `${Math.min(cellW, cellH) * 0.3}px "PingFang SC", system-ui`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('+', x + cellW / 2, y + cellH / 2);
             ctx.restore();
         }
+    }
+
+    ctx.restore();
+
+    // ✅ 绘制外边框线（只要 borderSize > 0 就绘制，不再依赖任何开关）
+    if (borderSize > 0) {
+        ctx.save();
+        ctx.strokeStyle = '#666666';   // 深灰色边框，清晰可见
+        ctx.lineWidth = 2;
+        // 边框线绘制在内容区域外围（即从 borderSize 开始，大小为 contentWidth/contentHeight）
+        ctx.strokeRect(borderSize, borderSize, contentWidth, contentHeight);
         ctx.restore();
     }
-    
-    ctx.restore();
 
     emit('render-complete');
 };
@@ -180,10 +195,11 @@ const exportImage = async (useTransparent) => {
     return canvasRef.value?.toDataURL('image/png');
 };
 
+// 监听参数变化（移除了 showOuterBorder）
 watch([() => props.images, () => props.spacing, () => props.bgColor, () => props.useTransparent,
         () => props.gridRows, () => props.gridCols, () => props.gridLayout,
         () => props.cellWidth, () => props.cellHeight, () => props.fillMode,
-        () => props.maskShape, () => props.cornerRadius, () => props.showOuterBorder], () => {
+        () => props.maskShape, () => props.cornerRadius, () => props.outerBorderSize], () => {
     nextTick(() => renderCanvas());
 }, { deep: true, immediate: true });
 

@@ -2,7 +2,6 @@
     <div class="free-canvas-container" :style="freeCanvasStyle" ref="containerRef">
         <div v-for="img in localImages" :key="img.id" 
             class="drag-img-card" 
-            :class="{ 'has-border': showOuterBorder }"
             :style="getCardStyle(img)" 
             @mousedown="startDrag($event, img)">
             <img :src="img.dataURL" :style="getImageStyle(img)" draggable="false">
@@ -15,7 +14,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, inject, onUnmounted } from 'vue';
+import { ref, watch, computed, onUnmounted } from 'vue';
 import { useCanvasDrag } from './composables/useCanvasDrag.js';
 import { loadImage } from './utils/canvasHelpers.js';
 
@@ -26,8 +25,7 @@ const props = defineProps({
     bgColor: { type: String, default: '#ffffff' },
     useTransparent: { type: Boolean, default: true },
     spacing: { type: Number, default: 12 },
-    maxSize: { type: Number, default: 160 },
-    showOuterBorder: { type: Boolean, default: false }
+    maxSize: { type: Number, default: 160 }
 });
 
 const emit = defineEmits(['remove', 'update:images']);
@@ -51,26 +49,17 @@ const canvasHeightRef = computed(() => props.canvasHeight);
 
 const { imagePositions, startDrag, clampAllPositions } = useCanvasDrag(canvasWidthRef, canvasHeightRef, getImageStyle);
 
-const freeCanvasStyle = computed(() => {
-    // 确定边框颜色：透明模式下边框透明，否则使用背景色
-    let borderColor = 'transparent';
-    if (props.showOuterBorder && !props.useTransparent) {
-        borderColor = props.bgColor;
-    } else if (props.showOuterBorder && props.useTransparent) {
-        borderColor = 'transparent';
-    }
-    
-    return {
-        backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
-        width: `${props.canvasWidth}px`,
-        height: `${props.canvasHeight}px`,
-        position: 'relative',
-        overflow: 'visible',
-        margin: 'auto',
-        boxShadow: props.showOuterBorder ? `0 0 0 ${props.spacing}px ${borderColor}` : '0 0 0 2px #cbd5e1',
-        transition: 'box-shadow 0.2s ease'
-    };
-});
+// 移除外边框逻辑，仅保留一个1px的浅色边框用于标识画布边界
+const freeCanvasStyle = computed(() => ({
+    backgroundColor: props.useTransparent ? 'transparent' : props.bgColor,
+    width: `${props.canvasWidth}px`,
+    height: `${props.canvasHeight}px`,
+    position: 'relative',
+    overflow: 'visible',
+    margin: 'auto',
+    boxShadow: '0 0 0 1px #cbd5e1', // 固定1px浅色边框，仅用于视觉边界
+    transition: 'box-shadow 0.2s ease'
+}));
 
 const getCardStyle = (img) => {
     const pos = imagePositions.value[img.id] || { x: 20, y: 20 };
@@ -87,15 +76,11 @@ const getCardStyle = (img) => {
     };
 };
 
-const getResolution = () => {
-    // 自由模式的分辨率就是画布设置的宽高加上外边框
-    const borderSize = props.showOuterBorder ? props.spacing : 0;
-    return {
-        width: props.canvasWidth + borderSize * 2,
-        height: props.canvasHeight + borderSize * 2
-    };
-};
-
+// 分辨率：不再包含外边框
+const getResolution = () => ({
+    width: props.canvasWidth,
+    height: props.canvasHeight
+});
 
 watch(() => props.images, (newImages) => {
     localImages.value = newImages.map(img => ({ ...img }));
@@ -131,24 +116,14 @@ const handleRemove = (id) => {
 };
 
 const exportImage = async (useTransparent) => {
-    const container = containerRef.value;
-    if (!container || localImages.value.length === 0) return null;
-    
-    const borderSize = props.showOuterBorder ? props.spacing : 0;
-    const totalWidth = props.canvasWidth + borderSize * 2;
-    const totalHeight = props.canvasHeight + borderSize * 2;
-    
     const canvas = document.createElement('canvas');
-    canvas.width = totalWidth;
-    canvas.height = totalHeight;
+    canvas.width = props.canvasWidth;
+    canvas.height = props.canvasHeight;
     const ctx = canvas.getContext('2d');
-    
+
     if (useTransparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
     else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-    
-    ctx.save();
-    ctx.translate(borderSize, borderSize);
-    
+
     for (const img of localImages.value) {
         const pos = imagePositions.value[img.id] || { x: 20, y: 20 };
         const imgStyle = getImageStyle(img);
@@ -157,8 +132,7 @@ const exportImage = async (useTransparent) => {
         const imageEl = await loadImage(img.dataURL);
         ctx.drawImage(imageEl, pos.x, pos.y, width, height);
     }
-    
-    ctx.restore();
+
     return canvas.toDataURL('image/png');
 };
 

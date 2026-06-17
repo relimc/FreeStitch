@@ -41,7 +41,6 @@
                 :mode="mode"
                 :spacing="spacing"
                 :outerBorderSize="outerBorderSize"
-                :showOuterBorder="showOuterBorder"
                 :bgColor="bgColor"
                 :useTransparent="useTransparent"
                 :canvasWidth="canvasWidth"
@@ -67,7 +66,6 @@
                 @mode-change="mode = $event"
                 @spacing-change="spacing = $event"
                 @outer-border-change="outerBorderSize = $event"
-                @toggle-outer-border="showOuterBorder = $event"
                 @bg-color-change="bgColor = $event"
                 @toggle-transparent="useTransparent = $event"
                 @update-canvas-width="canvasWidth = $event"
@@ -108,7 +106,6 @@
                     :useTransparent="useTransparent"
                     :canvasWidth="canvasWidth"
                     :canvasHeight="canvasHeight"
-                    :showOuterBorder="showOuterBorder"
                     :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
@@ -131,7 +128,6 @@
                     :fillMode="fillMode"
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
-                    :showOuterBorder="showOuterBorder"
                     :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
@@ -149,7 +145,6 @@
                     :masonryColumnWidth="masonryColumnWidth"
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
-                    :showOuterBorder="showOuterBorder"
                     :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
@@ -162,7 +157,6 @@
                     :subModeId="presetSubModeId"
                     :spacing="spacing"
                     :outerBorderSize="outerBorderSize"
-                    :showOuterBorder="showOuterBorder"
                     :bgColor="bgColor"
                     :useTransparent="useTransparent"
                     :fillMode="fillMode"
@@ -201,7 +195,6 @@ const selectedImageIds = ref([]);
 const mode = ref('preset');
 const spacing = ref(12);
 const outerBorderSize = ref(0);
-const showOuterBorder = ref(false);
 const bgColor = ref('#ffffff');
 const useTransparent = ref(true);
 const canvasWidth = ref(800);
@@ -389,7 +382,7 @@ const handleExport = async () => {
 };
 
 // 监听参数变化更新分辨率
-watch([mode, spacing, outerBorderSize, showOuterBorder, bgColor, useTransparent, canvasImages,
+watch([mode, spacing, outerBorderSize, bgColor, useTransparent, canvasImages,
         gridRows, gridCols, gridLayout, masonryCols, masonryColumnWidth,
         cellWidth, cellHeight, fillMode, maskShape, cornerRadius,
         presetGridType, presetSubModeId, presetCells, posterText, posterDateFormat,
