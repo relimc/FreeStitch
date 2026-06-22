@@ -277,7 +277,12 @@ const validateOuterBorder = (e) => {
 const subModeLibrary = {
     2: [
         { id: '2-horizontal', name: '横向双拼' },
-        { id: '2-vertical', name: '纵向双拼' }
+        { id: '2-vertical', name: '纵向双拼' },
+        { id: '2-vertical-2-1', name: '纵向2:1双拼' },
+        { id: '2-horizontal-2-1', name: '横向2:1双拼' },
+        { id: '2-horizontal-1-2', name: '横向1:2双拼' },
+        { id: '2-vertical-1-2', name: '纵向1:2双拼' },
+        { id: '2-trapezoid-vertical', name: '纵向斜切双拼' }
     ],
     3: [
         { id: '3-horizontal', name: '横向三拼' },
