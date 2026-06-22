@@ -21,7 +21,7 @@ const props = defineProps({
     fillMode: { type: String, default: 'cover' },
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
-    outerBorderSize: { type: Number, default: 0 }   // 仅保留外边框尺寸
+    outerBorderSize: { type: Number, default: 0 }
 });
 
 const canvasRef = ref(null);
@@ -35,14 +35,42 @@ const getResolution = () => {
     return { width: 600, height: 400 };
 };
 
+// 辅助：绘制蒙版路径
+const drawMaskPath = (ctx, x, y, w, h) => {
+    if (props.maskShape === 'circle') {
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const r = Math.min(w, h) / 2;
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    } else if (props.maskShape === 'roundRect') {
+        const radius = Math.min(props.cornerRadius, Math.min(w, h) / 2);
+        if (radius <= 0) {
+            ctx.rect(x, y, w, h);
+        } else {
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            ctx.lineTo(x + radius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+        }
+    } else {
+        // 无蒙版时使用矩形
+        ctx.rect(x, y, w, h);
+    }
+    ctx.closePath();
+};
+
 const renderCanvas = async () => {
-    // 调试日志（可删除）
-    console.log('outerBorderSize:', props.outerBorderSize, 'useTransparent:', props.useTransparent);
+    console.log('🔄 Grid 渲染中... maskShape:', props.maskShape, 'cornerRadius:', props.cornerRadius);
     const canvas = canvasRef.value;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // 1. 确定行列数
+    // 1. 行列数
     let rows = props.gridRows, cols = props.gridCols;
     if (props.gridLayout === 'horizontal') { rows = 1; cols = Math.max(props.gridCols, 1); }
     else if (props.gridLayout === 'vertical') { cols = 1; rows = Math.max(props.gridRows, 1); }
@@ -80,9 +108,9 @@ const renderCanvas = async () => {
         }
     }
 
-    // 4. 计算画布尺寸（外边框直接使用 outerBorderSize，无需开关）
+    // 4. 画布尺寸
     const gap = props.spacing;
-    const borderSize = Math.max(0, props.outerBorderSize); // 直接使用，0 表示无边框
+    const borderSize = Math.max(0, props.outerBorderSize);
     const contentWidth = cols * cellW + (cols - 1) * gap;
     const contentHeight = rows * cellH + (rows - 1) * gap;
     const canvasWidth = contentWidth + borderSize * 2;
@@ -91,7 +119,7 @@ const renderCanvas = async () => {
     canvas.width = Math.max(1, Math.ceil(canvasWidth));
     canvas.height = Math.max(1, Math.ceil(canvasHeight));
 
-    // 清空/填充背景（整个画布）
+    // 清空/填充背景（整个画布，包括外边框区域）
     if (props.useTransparent) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     } else {
@@ -110,57 +138,31 @@ const renderCanvas = async () => {
         const x = col * (cellW + gap);
         const y = row * (cellH + gap);
 
+        const imgData = (hasImages && i < loadedImages.length) ? loadedImages[i] : null;
+
+        ctx.save();
+
+        // 第一步：应用蒙版裁剪（如果有），否则矩形裁剪
+        ctx.beginPath();
+        drawMaskPath(ctx, x, y, cellW, cellH);
+        ctx.clip();
+
+        // 第二步：绘制单元格背景（只在非透明模式下）
         if (!props.useTransparent) {
             ctx.fillStyle = '#f1f5f9';
             ctx.fillRect(x, y, cellW, cellH);
         }
 
-        const imgData = (hasImages && i < loadedImages.length) ? loadedImages[i] : null;
-
+        // 第三步：绘制图片或空单元格占位符
         if (imgData) {
             const { drawW, drawH, offsetX, offsetY } = calculateFit(
                 imgData.origW, imgData.origH,
                 cellW, cellH,
                 props.fillMode
             );
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(x, y, cellW, cellH);
-            ctx.clip();
-
-            if (props.maskShape !== 'none') {
-                ctx.save();
-                if (props.maskShape === 'circle') {
-                    const cx = x + cellW / 2;
-                    const cy = y + cellH / 2;
-                    const r = Math.min(cellW, cellH) / 2;
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                    ctx.clip();
-                } else if (props.maskShape === 'roundRect') {
-                    const radius = Math.min(props.cornerRadius, Math.min(cellW, cellH) / 2);
-                    ctx.beginPath();
-                    ctx.moveTo(x + radius, y);
-                    ctx.lineTo(x + cellW - radius, y);
-                    ctx.quadraticCurveTo(x + cellW, y, x + cellW, y + radius);
-                    ctx.lineTo(x + cellW, y + cellH - radius);
-                    ctx.quadraticCurveTo(x + cellW, y + cellH, x + cellW - radius, y + cellH);
-                    ctx.lineTo(x + radius, y + cellH);
-                    ctx.quadraticCurveTo(x, y + cellH, x, y + cellH - radius);
-                    ctx.lineTo(x, y + radius);
-                    ctx.quadraticCurveTo(x, y, x + radius, y);
-                    ctx.closePath();
-                    ctx.clip();
-                }
-            }
-
             ctx.drawImage(imgData.img, x + offsetX, y + offsetY, drawW, drawH);
-
-            if (props.maskShape !== 'none') ctx.restore();
-            ctx.restore();
         } else {
-            ctx.save();
+            // 空单元格：虚线框 + 加号（现在被蒙版裁剪）
             ctx.strokeStyle = '#cbd5e1';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
@@ -171,22 +173,14 @@ const renderCanvas = async () => {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('+', x + cellW / 2, y + cellH / 2);
-            ctx.restore();
         }
+
+        ctx.restore();
     }
 
     ctx.restore();
 
-    // ✅ 绘制外边框线（只要 borderSize > 0 就绘制，不再依赖任何开关）
-    if (borderSize > 0) {
-        ctx.save();
-        ctx.strokeStyle = '#666666';   // 深灰色边框，清晰可见
-        ctx.lineWidth = 2;
-        // 边框线绘制在内容区域外围（即从 borderSize 开始，大小为 contentWidth/contentHeight）
-        ctx.strokeRect(borderSize, borderSize, contentWidth, contentHeight);
-        ctx.restore();
-    }
-
+    // 外边框：不绘制额外线条，只依赖背景色填充（已覆盖）
     emit('render-complete');
 };
 
@@ -195,7 +189,7 @@ const exportImage = async (useTransparent) => {
     return canvasRef.value?.toDataURL('image/png');
 };
 
-// 监听参数变化（移除了 showOuterBorder）
+// 监听
 watch([() => props.images, () => props.spacing, () => props.bgColor, () => props.useTransparent,
         () => props.gridRows, () => props.gridCols, () => props.gridLayout,
         () => props.cellWidth, () => props.cellHeight, () => props.fillMode,

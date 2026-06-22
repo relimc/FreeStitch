@@ -17,7 +17,7 @@ const props = defineProps({
     masonryColumnWidth: { type: Number, default: 360 },
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
-    outerBorderSize: { type: Number, default: 0 }   // 仅保留外边框尺寸，移除 showOuterBorder
+    outerBorderSize: { type: Number, default: 0 }
 });
 
 const canvasRef = ref(null);
@@ -68,7 +68,6 @@ const renderCanvas = async () => {
 
     const contentWidth = cols * fixedWidth + (cols - 1) * props.spacing;
     const contentHeight = Math.max(...colHeights) - props.spacing;
-    // ✅ 直接使用 outerBorderSize，不再依赖 showOuterBorder
     const borderSize = Math.max(0, props.outerBorderSize);
     const canvasWidth = contentWidth + borderSize * 2;
     const canvasHeight = contentHeight + borderSize * 2;
@@ -76,7 +75,7 @@ const renderCanvas = async () => {
     canvas.width = Math.max(1, Math.ceil(canvasWidth));
     canvas.height = Math.max(1, Math.ceil(canvasHeight));
 
-    // 清空/填充背景
+    // 清空/填充背景（整个画布，包括外边框区域）
     if (props.useTransparent) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     } else {
@@ -90,44 +89,52 @@ const renderCanvas = async () => {
     // 绘制每张图片
     for (const p of positions) {
         ctx.save();
+
+        // 应用蒙版
         if (props.maskShape !== 'none') {
+            ctx.beginPath();
             if (props.maskShape === 'circle') {
                 const cx = p.x + p.drawW / 2;
                 const cy = p.y + p.drawH / 2;
                 const r = Math.min(p.drawW, p.drawH) / 2;
-                ctx.beginPath();
                 ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                ctx.clip();
-            } else if (props.maskShape === 'roundRect') {
-                const r = Math.min(props.cornerRadius, Math.min(p.drawW, p.drawH) / 2);
-                ctx.beginPath();
-                ctx.moveTo(p.x + r, p.y);
-                ctx.lineTo(p.x + p.drawW - r, p.y);
-                ctx.quadraticCurveTo(p.x + p.drawW, p.y, p.x + p.drawW, p.y + r);
-                ctx.lineTo(p.x + p.drawW, p.y + p.drawH - r);
-                ctx.quadraticCurveTo(p.x + p.drawW, p.y + p.drawH, p.x + p.drawW - r, p.y + p.drawH);
-                ctx.lineTo(p.x + r, p.y + p.drawH);
-                ctx.quadraticCurveTo(p.x, p.y + p.drawH, p.x, p.y + p.drawH - r);
-                ctx.lineTo(p.x, p.y + r);
-                ctx.quadraticCurveTo(p.x, p.y, p.x + r, p.y);
                 ctx.closePath();
-                ctx.clip();
+            } else if (props.maskShape === 'roundRect') {
+                const radius = Math.min(props.cornerRadius, Math.min(p.drawW, p.drawH) / 2);
+                if (radius <= 0) {
+                    ctx.rect(p.x, p.y, p.drawW, p.drawH);
+                } else {
+                    ctx.moveTo(p.x + radius, p.y);
+                    ctx.lineTo(p.x + p.drawW - radius, p.y);
+                    ctx.quadraticCurveTo(p.x + p.drawW, p.y, p.x + p.drawW, p.y + radius);
+                    ctx.lineTo(p.x + p.drawW, p.y + p.drawH - radius);
+                    ctx.quadraticCurveTo(p.x + p.drawW, p.y + p.drawH, p.x + p.drawW - radius, p.y + p.drawH);
+                    ctx.lineTo(p.x + radius, p.y + p.drawH);
+                    ctx.quadraticCurveTo(p.x, p.y + p.drawH, p.x, p.y + p.drawH - radius);
+                    ctx.lineTo(p.x, p.y + radius);
+                    ctx.quadraticCurveTo(p.x, p.y, p.x + radius, p.y);
+                    ctx.closePath();
+                }
             }
+            ctx.clip();
+        } else {
+            // 无蒙版：用矩形裁剪防止图片溢出（可选，但瀑布流图片不会溢出，可不裁剪）
+            // 为了安全，还是裁剪一下
+            ctx.beginPath();
+            ctx.rect(p.x, p.y, p.drawW, p.drawH);
+            ctx.clip();
         }
+
         ctx.drawImage(p.img, p.x, p.y, p.drawW, p.drawH);
         ctx.restore();
     }
 
     ctx.restore();
 
-    // ✅ 绘制外边框线（只要 borderSize > 0 就绘制，不再依赖任何开关）
-    if (borderSize > 0) {
-        ctx.save();
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(borderSize, borderSize, contentWidth, contentHeight);
-        ctx.restore();
-    }
+    // ✅ 外边框：不再绘制实线，只依赖背景色填充（已在前面完成）
+    // 外边框区域就是画布中 borderSize 宽度的外围，已由 bgColor 填充
+
+    // 注意：瀑布流模式在透明模式下，外边框透明；非透明模式下，外边框为 bgColor 纯色扩展
 };
 
 const exportImage = async (useTransparent) => {
@@ -135,7 +142,7 @@ const exportImage = async (useTransparent) => {
     return canvasRef.value?.toDataURL('image/png');
 };
 
-// 获取分辨率（同步计算）
+// 获取分辨率
 const getResolution = () => {
     if (props.images.length === 0) {
         return { width: 600, height: 400 };
@@ -153,7 +160,6 @@ const getResolution = () => {
     
     const contentWidth = cols * fixedWidth + (cols - 1) * props.spacing;
     const contentHeight = Math.max(...colHeights) - props.spacing;
-    // ✅ 直接使用 outerBorderSize，移除 showOuterBorder 判断
     const borderSize = Math.max(0, props.outerBorderSize);
     return {
         width: contentWidth + borderSize * 2,
@@ -161,7 +167,7 @@ const getResolution = () => {
     };
 };
 
-// 监听参数变化（移除 showOuterBorder）
+// 监听参数变化
 watch([() => props.images, () => props.spacing, () => props.bgColor, () => props.useTransparent,
         () => props.masonryCols, () => props.masonryColumnWidth, () => props.outerBorderSize,
         () => props.maskShape, () => props.cornerRadius], () => {
