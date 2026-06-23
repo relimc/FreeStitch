@@ -102,7 +102,7 @@ const subModeLibrary = {
     '2-horizontal-2-1': { rows: 1, cols: 2, cells: 2, colRatios: [2, 1] },
     '2-horizontal-1-2': { rows: 1, cols: 2, cells: 2, colRatios: [1, 2] },
     '2-vertical-1-2': { rows: 2, cols: 1, cells: 2, rowRatios: [1, 2] },
-    '2-trapezoid-vertical': { type: 'trapezoid', direction: 'vertical', cells: 2 },
+    '2-trapezoid-horizontal': { type: 'trapezoid', direction: 'horizontal', cells: 2 },
 
     // 3宫格
     '3-horizontal': { rows: 1, cols: 3, cells: 3, colRatios: [1, 1, 1] },
@@ -217,9 +217,8 @@ const getCellRects = (layout, canvasW, canvasH, gap) => {
     return rects;
 };
 
-// ---------- 斜切绘制（预览 & 导出共用） ----------
-const drawTrapezoid = (ctx, canvasW, canvasH, useTransparent) => {
-    // 清空/填充背景
+const drawTrapezoidWithImages = async (ctx, canvasW, canvasH, useTransparent, cellsData) => {
+    // 清空/填充背景（整个画布，包括外边框）
     if (useTransparent) {
         ctx.clearRect(0, 0, canvasW, canvasH);
     } else {
@@ -227,41 +226,39 @@ const drawTrapezoid = (ctx, canvasW, canvasH, useTransparent) => {
         ctx.fillRect(0, 0, canvasW, canvasH);
     }
 
-    const gap = props.spacing;
     const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
-    // 实际绘制区域（扣除外边框）
     const innerW = canvasW - borderSize * 2;
     const innerH = canvasH - borderSize * 2;
+    if (innerW <= 0 || innerH <= 0) return;
+
     ctx.save();
     ctx.translate(borderSize, borderSize);
 
-    // 定义斜线：左上到右下，截取 1/4 和 3/4 位置
+    // 横向斜切：左右梯形（从左上到右下斜切）
     const x1 = innerW * 0.25;
     const x2 = innerW * 0.75;
-    // 上梯形（四个顶点）
-    const topTrap = [
+
+    // 左梯形（上底 x1，下底 x2）
+    const leftTrap = [
         { x: 0, y: 0 },
-        { x: innerW, y: 0 },
-        { x: x2, y: innerH },
-        { x: x1, y: innerH }
-    ];
-    // 下梯形
-    const bottomTrap = [
         { x: x1, y: 0 },
-        { x: x2, y: 0 },
-        { x: innerW, y: innerH },
+        { x: x2, y: innerH },
         { x: 0, y: innerH }
     ];
+    // 右梯形（上底 W - x1，下底 W - x2）
+    const rightTrap = [
+        { x: x1, y: 0 },
+        { x: innerW, y: 0 },
+        { x: innerW, y: innerH },
+        { x: x2, y: innerH }
+    ];
+    const traps = [leftTrap, rightTrap];
 
-    const traps = [topTrap, bottomTrap];
-
-    // 对每个梯形区域绘制
     for (let i = 0; i < 2; i++) {
-        const cell = cells.value[i] || { imageId: null, imageData: null };
+        const cell = cellsData[i] || { imageId: null, imageData: null };
         const pts = traps[i];
         ctx.save();
 
-        // 构建路径（梯形）
         ctx.beginPath();
         ctx.moveTo(pts[0].x, pts[0].y);
         for (let j = 1; j < pts.length; j++) {
@@ -270,28 +267,40 @@ const drawTrapezoid = (ctx, canvasW, canvasH, useTransparent) => {
         ctx.closePath();
         ctx.clip();
 
-        // 背景（浅灰色，仅非透明）
+        // 单元格背景（浅灰色，仅非透明）
         if (!useTransparent) {
             ctx.fillStyle = '#f1f5f9';
             ctx.fillRect(0, 0, innerW, innerH);
         }
 
         if (cell && cell.imageData) {
-            // 由于图片加载是异步的，但此处是同步绘制，需要加载图片
-            // 但因 drawTrapezoid 会在 loadImage 后调用，所以这里直接绘制（在导出时图片已加载）
-            // 预览时，我们使用同步方式：在 renderTrapezoid 中先加载所有图片再绘制
-            // 所以这里假设 img 已经被传递，但为了通用，我们使用 loadImage 异步
-            // 但 drawTrapezoid 是同步调用的，所以我们需要在外部提前加载图片
-            // 为简化，我们在 renderTrapezoid 和 exportImage 中分别处理
-            // 这里暂时不绘制图片，而是由调用者负责加载后传入
-            // 我们改为在 drawTrapezoid 中接收图片数据
+            const img = await loadImage(cell.imageData);
+            let drawW, drawH, offsetX, offsetY;
+            if (props.fillMode === 'cover') {
+                const scale = Math.max(innerW / img.width, innerH / img.height);
+                drawW = img.width * scale;
+                drawH = img.height * scale;
+                offsetX = (innerW - drawW) / 2;
+                offsetY = (innerH - drawH) / 2;
+            } else {
+                const scale = Math.min(innerW / img.width, innerH / img.height);
+                drawW = img.width * scale;
+                drawH = img.height * scale;
+                offsetX = (innerW - drawW) / 2;
+                offsetY = (innerH - drawH) / 2;
+            }
+            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
         } else {
-            // 空单元格显示 + 号
+            // 空单元格显示 + 号（居中）
             ctx.fillStyle = '#94a3b8';
             ctx.font = `${Math.min(innerW, innerH) * 0.3}px "PingFang SC", system-ui`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('+', innerW / 2, innerH / 2);
+            let cx = 0, cy = 0;
+            for (const p of pts) { cx += p.x; cy += p.y; }
+            cx /= pts.length;
+            cy /= pts.length;
+            ctx.fillText('+', cx, cy);
         }
         ctx.restore();
     }
@@ -314,11 +323,13 @@ const drawTrapezoid = (ctx, canvasW, canvasH, useTransparent) => {
     ctx.restore();
 
     ctx.restore();
-    // 外边框不绘制实线，由背景色填充
 };
 
 // 渲染斜切（预览）
 const renderTrapezoid = async () => {
+    console.log('✅ renderTrapezoid 被调用');
+    console.log('trapezoidCanvasRef:', trapezoidCanvasRef.value);
+    console.log('cells:', cells.value);
     await nextTick();
     const canvas = trapezoidCanvasRef.value;
     if (!canvas) return;
@@ -327,112 +338,10 @@ const renderTrapezoid = async () => {
     const H = props.canvasHeight + (props.outerBorderSize > 0 ? props.outerBorderSize * 2 : 0);
     canvas.width = Math.max(1, W);
     canvas.height = Math.max(1, H);
-
-    // 先清空并绘制背景、虚线框、空占位
-    drawTrapezoid(ctx, canvas.width, canvas.height, props.useTransparent);
-
-    // 如果有图片，加载并绘制到对应梯形
-    for (let i = 0; i < 2; i++) {
-        const cell = cells.value[i];
-        if (cell && cell.imageData) {
-            const img = await loadImage(cell.imageData);
-            // 重新绘制该梯形区域
-            // 但我们需要在 drawTrapezoid 中支持绘制图片，因此重构 drawTrapezoid 接受图片数组
-            // 我们重新绘制整个canvas
-            drawTrapezoidWithImages(ctx, canvas.width, canvas.height, props.useTransparent, cells.value);
-        }
-    }
+    await drawTrapezoidWithImages(ctx, canvas.width, canvas.height, props.useTransparent, cells.value);
 };
 
-// 支持图片绘制的 drawTrapezoid
-const drawTrapezoidWithImages = async (ctx, canvasW, canvasH, useTransparent, cellsData) => {
-    // 清空/填充背景
-    if (useTransparent) {
-        ctx.clearRect(0, 0, canvasW, canvasH);
-    } else {
-        ctx.fillStyle = props.bgColor;
-        ctx.fillRect(0, 0, canvasW, canvasH);
-    }
-
-    const borderSize = props.outerBorderSize > 0 ? props.outerBorderSize : 0;
-    const innerW = canvasW - borderSize * 2;
-    const innerH = canvasH - borderSize * 2;
-    ctx.save();
-    ctx.translate(borderSize, borderSize);
-
-    const x1 = innerW * 0.25;
-    const x2 = innerW * 0.75;
-    const topTrap = [{ x: 0, y: 0 }, { x: innerW, y: 0 }, { x: x2, y: innerH }, { x: x1, y: innerH }];
-    const bottomTrap = [{ x: x1, y: 0 }, { x: x2, y: 0 }, { x: innerW, y: innerH }, { x: 0, y: innerH }];
-    const traps = [topTrap, bottomTrap];
-
-    for (let i = 0; i < 2; i++) {
-        const cell = cellsData[i] || { imageId: null, imageData: null };
-        const pts = traps[i];
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let j = 1; j < pts.length; j++) {
-            ctx.lineTo(pts[j].x, pts[j].y);
-        }
-        ctx.closePath();
-        ctx.clip();
-
-        // 背景
-        if (!useTransparent) {
-            ctx.fillStyle = '#f1f5f9';
-            ctx.fillRect(0, 0, innerW, innerH);
-        }
-
-        if (cell && cell.imageData) {
-            const img = await loadImage(cell.imageData);
-            let drawW, drawH, offsetX, offsetY;
-            if (props.fillMode === 'cover') {
-                const scale = Math.max(innerW / img.width, innerH / img.height);
-                drawW = img.width * scale;
-                drawH = img.height * scale;
-                offsetX = (innerW - drawW) / 2;
-                offsetY = (innerH - drawH) / 2;
-            } else {
-                const scale = Math.min(innerW / img.width, innerH / img.height);
-                drawW = img.width * scale;
-                drawH = img.height * scale;
-                offsetX = (innerW - drawW) / 2;
-                offsetY = (innerH - drawH) / 2;
-            }
-            // 应用蒙版（clip已经做，无需额外）
-            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
-        } else {
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = `${Math.min(innerW, innerH) * 0.3}px "PingFang SC", system-ui`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('+', innerW / 2, innerH / 2);
-        }
-        ctx.restore();
-    }
-
-    // 画虚线边框
-    ctx.save();
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    for (const pts of traps) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let j = 1; j < pts.length; j++) {
-            ctx.lineTo(pts[j].x, pts[j].y);
-        }
-        ctx.closePath();
-        ctx.stroke();
-    }
-    ctx.setLineDash([]);
-    ctx.restore();
-
-    ctx.restore();
-};
-
-// 点击斜切canvas
+// 点击斜切canvas（上下梯形点击检测）
 const handleTrapezoidClick = async (e) => {
     const canvas = trapezoidCanvasRef.value;
     if (!canvas) return;
@@ -451,8 +360,9 @@ const handleTrapezoidClick = async (e) => {
     const H = props.canvasHeight;
     const x1 = W * 0.25;
     const x2 = W * 0.75;
-    const topTrap = [{x:0,y:0}, {x:W,y:0}, {x:x2,y:H}, {x:x1,y:H}];
-    const bottomTrap = [{x:x1,y:0}, {x:x2,y:0}, {x:W,y:H}, {x:0,y:H}];
+    // 横向梯形顶点（左右）
+    const leftTrap = [{x:0,y:0}, {x:x1,y:0}, {x:x2,y:H}, {x:0,y:H}];
+    const rightTrap = [{x:x1,y:0}, {x:W,y:0}, {x:W,y:H}, {x:x2,y:H}];
 
     const pointInPolygon = (px, py, polygon) => {
         let inside = false;
@@ -466,8 +376,8 @@ const handleTrapezoidClick = async (e) => {
         return inside;
     };
     let idx = -1;
-    if (pointInPolygon(innerX, innerY, topTrap)) idx = 0;
-    else if (pointInPolygon(innerX, innerY, bottomTrap)) idx = 1;
+    if (pointInPolygon(innerX, innerY, leftTrap)) idx = 0;
+    else if (pointInPolygon(innerX, innerY, rightTrap)) idx = 1;
     if (idx !== -1) {
         selectCell(idx);
     }
@@ -487,7 +397,6 @@ const initLayout = (subId) => {
     }
     cells.value = newCells;
     emit('update:cells', cells.value);
-    // 如果是斜切，渲染canvas
     if (layout.type === 'trapezoid') {
         nextTick(() => {
             renderTrapezoid();
@@ -552,19 +461,34 @@ const exportImage = async (useTransparent) => {
     const ctx = canvas.getContext('2d');
 
     if (isTextMode.value) {
-        // 图文模式
+        // 图文模式（简化处理，仅保留基本功能）
         if (useTransparent) ctx.clearRect(0, 0, W, H);
         else { ctx.fillStyle = props.bgColor; ctx.fillRect(0, 0, W, H); }
         ctx.save();
         ctx.translate(borderSize, borderSize);
-        // 绘制图片和文字（略，保持原有逻辑）
-        // ...
+        if (cells.value[0] && cells.value[0].imageData) {
+            const img = await loadImage(cells.value[0].imageData);
+            const imgH = props.canvasHeight * 0.7;
+            const imgW = (img.width / img.height) * imgH;
+            const imgX = (props.canvasWidth - imgW) / 2;
+            ctx.drawImage(img, imgX, 0, imgW, imgH);
+        }
+        ctx.fillStyle = props.posterTextColor;
+        ctx.font = `${props.posterFontSize}px "PingFang SC"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(props.posterText, props.canvasWidth / 2, props.canvasHeight - 30);
+        if (props.posterDateFormat !== 'none') {
+            ctx.font = `14px sans-serif`;
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(formattedDate.value, props.canvasWidth / 2, props.canvasHeight - 8);
+        }
         ctx.restore();
         return canvas.toDataURL('image/png');
     }
 
     if (isTrapezoidMode.value) {
-        // 斜切导出
         await drawTrapezoidWithImages(ctx, W, H, useTransparent, cells.value);
         return canvas.toDataURL('image/png');
     }
