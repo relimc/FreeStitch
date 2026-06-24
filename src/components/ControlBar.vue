@@ -14,32 +14,38 @@
         
         <!-- 通用参数：内间距 + 外边框 + 背景 -->
         <div class="param-group">
-            <!-- 内间距（图片之间的间距） -->
-            <div class="param-row" :class="{ 'param-disabled': mode === 'free' }">
+            <!-- 内间距 -->
+            <div class="param-row">
                 <span class="param-label">内间距</span>
-                <input type="range" :value="spacing" min="0" max="200" 
-                    @input="$emit('spacing-change', parseInt($event.target.value))"
-                    :disabled="mode === 'free'">
+                <input type="range" :value="spacing" min="0" max="200" @input="$emit('spacing-change', parseInt($event.target.value))">
                 <div class="number-input-wrapper">
-                    <input type="number" :value="spacing" min="0" max="200" step="1"
+                    <input 
+                        type="number" 
+                        :value="spacing" 
+                        min="0" 
+                        max="200" 
+                        step="1"
                         @input="$emit('spacing-change', parseInt($event.target.value))"
                         @blur="validateSpacing"
-                        :disabled="mode === 'free'">
+                    >
                     <span>px</span>
                 </div>
             </div>
             
-            <!-- 外边框（画布外围边框） -->
+            <!-- 外边框 -->
             <div class="param-row" :class="{ 'param-disabled': mode === 'free' }">
                 <span class="param-label">外边框</span>
-                <input type="range" :value="outerBorderSize" min="0" max="200" 
-                    @input="$emit('outer-border-change', parseInt($event.target.value))"
-                    :disabled="mode === 'free'">
+                <input type="range" :value="outerBorderSize" min="0" max="200" @input="$emit('outer-border-change', parseInt($event.target.value))">
                 <div class="number-input-wrapper">
-                    <input type="number" :value="outerBorderSize" min="0" max="200" step="1"
+                    <input 
+                        type="number" 
+                        :value="outerBorderSize" 
+                        min="0" 
+                        max="200" 
+                        step="1"
                         @input="$emit('outer-border-change', parseInt($event.target.value))"
                         @blur="validateOuterBorder"
-                        :disabled="mode === 'free'">
+                    >
                     <span>px</span>
                 </div>
             </div>
@@ -60,14 +66,48 @@
         </div>
 
         <!-- 高级选项容器 -->
-        <div class="advanced-container"
-             @mouseenter="handleMouseEnter"
-             @mouseleave="handleMouseLeave">
+        <div class="advanced-container">
             <div class="advanced-trigger" ref="advancedTriggerRef">
-                <span>⚙️ 高级设置</span>
-                <span class="trigger-arrow">›</span>
+                <!-- 左侧：画布尺寸输入（独立卡片） -->
+                <div class="size-input-wrapper">
+                    <div class="size-input-group">
+                        <span class="size-label">画布尺寸</span>
+                        <input 
+                            type="number" 
+                            :value="canvasWidth" 
+                            @input="$emit('update-canvas-width', parseInt($event.target.value) || 800)" 
+                            min="100" 
+                            step="10"
+                            class="size-input"
+                        >
+                        <span class="size-sep">×</span>
+                        <input 
+                            type="number" 
+                            :value="canvasHeight" 
+                            @input="$emit('update-canvas-height', parseInt($event.target.value) || 600)" 
+                            min="100" 
+                            step="10"
+                            class="size-input"
+                        >
+                        <span class="size-unit">px</span>
+                    </div>
+                </div>
+
+                <!-- 分隔线 -->
+                <div class="divider"></div>
+
+                <!-- 右侧：高级设置（独立卡片） -->
+                <div 
+                    class="trigger-right-wrapper"
+                    @mouseenter="handleMouseEnter"
+                    @mouseleave="handleMouseLeave"
+                    @click.stop="toggleAdvancedPanel"
+                >
+                    <span>⚙️ 高级设置</span>
+                    <span class="trigger-arrow">›</span>
+                </div>
             </div>
-            <div class="advanced-gap"></div>
+
             <Teleport to="body">
                 <div v-show="showAdvancedPanel || keepPanelOpen" 
                      ref="advancedPanelRef"
@@ -75,7 +115,8 @@
                      :class="{ 'panel-sticky': keepPanelOpen }"
                      :style="panelStyle"
                      @mouseenter="handleMouseEnter"
-                     @mouseleave="handleMouseLeave">
+                     @mouseleave="handleMouseLeave"
+                >
                     <div class="panel-header">
                         <span>高级设置 - {{ currentModeLabel }}</span>
                         <label class="pin-checkbox">
@@ -86,19 +127,8 @@
                     <div class="panel-body">
                         <!-- 自由模式参数 -->
                         <div v-if="mode === 'free'" class="param-group-inline">
-                            <div class="param-row">
-                                <span class="param-label">画布宽</span>
-                                <div class="number-input-wrapper">
-                                    <input type="number" :value="canvasWidth" min="100" step="10" @input="$emit('update-canvas-width', parseInt($event.target.value))">
-                                    <span>px</span>
-                                </div>
-                            </div>
-                            <div class="param-row">
-                                <span class="param-label">画布高</span>
-                                <div class="number-input-wrapper">
-                                    <input type="number" :value="canvasHeight" min="100" step="10" @input="$emit('update-canvas-height', parseInt($event.target.value))">
-                                    <span>px</span>
-                                </div>
+                            <div class="param-row" style="color: #94a3b8; font-size: 0.7rem;">
+                                画布尺寸已在上方调整
                             </div>
                         </div>
                         
@@ -216,7 +246,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 
 const emit = defineEmits([
     'mode-change', 'spacing-change', 'bg-color-change', 'toggle-transparent',
@@ -253,7 +283,7 @@ const props = defineProps({
     presetSubModeId: { type: String, default: '2-horizontal' }
 });
 
-// 验证输入值
+// ---- 验证函数 ----
 const validateSpacing = (e) => {
     let val = parseInt(e.target.value);
     if (isNaN(val)) val = 0;
@@ -274,6 +304,7 @@ const validateOuterBorder = (e) => {
     }
 };
 
+// ---- 预设子模式库 ----
 const subModeLibrary = {
     2: [
         { id: '2-horizontal', name: '横向双拼' },
@@ -290,48 +321,47 @@ const subModeLibrary = {
         { id: '3-1-2', name: '上一下二' },
         { id: '3-2-1', name: '上二下一' },
         { id: '3-left-2-1', name: '左二右一' },
-        { id: '3-left-1-2', name: '左一右二' } 
+        { id: '3-left-1-2', name: '左一右二' }
     ],
     4: [
         { id: '4-grid', name: '2x2网格' },
         { id: '4-horizontal', name: '横向四拼' },
         { id: '4-vertical', name: '纵向四拼' },
         { id: '4-1-3', name: '上一下三' },
-        { id: '4-3-1', name: '上三下一' },           
-        { id: '4-1-3-horizontal', name: '左一右三' }, 
-        { id: '4-3-1-horizontal', name: '左三右一' },
+        { id: '4-3-1', name: '上三下一' },
+        { id: '4-left-1-3', name: '左一右三' },
+        { id: '4-left-3-1', name: '左三右一' },
         { id: '4-diagonal', name: '对角大小' }
     ],
     5: [
-        { id: '5-2x3', name: '2+3布局' },
+        { id: '5-2x3', name: '2x3布局' },
         { id: '5-left-2-3', name: '左二右三' },
         { id: '5-left-3-2', name: '左三右二' },
         { id: '5-top-2-3', name: '上二下三' },
         { id: '5-top-3-2', name: '上三下二' }
     ],
     6: [
-        { id: '6-2x3', name: '2x3网格' },
-        { id: '6-3x2', name: '3x2网格' },
-        { id: '6-top-2-4', name: '上2下4' },   
-        { id: '6-top-4-2', name: '上4下2' },   
+        { id: '6-2x3', name: '2行3列' },
+        { id: '6-3x2', name: '3行2列' },
+        { id: '6-top-2-4', name: '上2下4' },
+        { id: '6-top-4-2', name: '上4下2' },
         { id: '6-left-4-2', name: '左4右2' },
-        { id: '6-left-2-4', name: '左2右4' } 
+        { id: '6-left-2-4', name: '左2右4' }
     ],
     7: [
-        { id: '7-1-3-3', name: '1-3-3' },         // 原有
-        { id: '7-top-4-3', name: '上4下3' },       // ✅ 新增
-        { id: '7-top-3-4', name: '上3下4' },       // ✅ 新增
-        { id: '7-3-1-3', name: '3-1-3' },          // ✅ 新增
-        { id: '7-3-2-2', name: '3-2-2' },          // ✅ 新增
-        { id: '7-1-3-3-h2', name: '1-3-3(高2:1:1)' }, // ✅ 新增
-        { id: '7-2-3-2', name: '2-3-2' },           // ✅ 新增
+        { id: '7-1-3-3', name: '1-3-3' },
+        { id: '7-top-4-3', name: '上4下3' },
+        { id: '7-top-3-4', name: '上3下4' },
+        { id: '7-3-1-3', name: '3-1-3' },
+        { id: '7-3-2-2', name: '3-2-2' },
+        { id: '7-1-3-3-h2', name: '1-3-3(高2:1:1)' },
+        { id: '7-2-3-2', name: '2-3-2' },
         { id: '7-3-3-1', name: '3-3-1' }
     ],
     8: [
         { id: '8-2x4', name: '2行4列' },
         { id: '8-4x2', name: '4行2列' },
         { id: '8-3-2-3', name: '3-2-3' },
-        { id: '8-3-3-2', name: '3-3-2' }, 
         { id: '8-1-3-4', name: '1-3-4' },
         { id: '8-3-2-3-h', name: '左3中2右3' }
     ],
@@ -370,7 +400,7 @@ const currentModeLabel = computed(() => {
     return opt ? opt.label : '预设';
 });
 
-// 高级面板控制
+// ---- 高级面板控制 ----
 const showAdvancedPanel = ref(false);
 const keepPanelOpen = ref(false);
 const advancedTriggerRef = ref(null);
@@ -451,6 +481,17 @@ const handleMouseLeave = () => {
     hideTimeout = setTimeout(() => {
         showAdvancedPanel.value = false;
     }, 200);
+};
+
+const toggleAdvancedPanel = () => {
+    if (showAdvancedPanel.value && keepPanelOpen.value) {
+        keepPanelOpen.value = false;
+        showAdvancedPanel.value = false;
+    } else {
+        showAdvancedPanel.value = true;
+        keepPanelOpen.value = true;
+        adjustPanelPosition();
+    }
 };
 
 const handleResize = () => {
@@ -578,30 +619,150 @@ const onColorChange = (e) => {
     margin-left: auto;
     width: 120px;
 }
+
+/* ========== 高级容器 ========== */
 .advanced-container {
     position: relative;
+    background: #f1f5f9;
 }
+
+/* 分隔线：贯穿整个 advanced-container 高度 */
+.advanced-container::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #b0b8c4; /* 灰色分隔线，略深于背景 */
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 触发器行 */
 .advanced-trigger {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
+    justify-content: space-between;
+    padding: 6px 16px;
     background: #f1f5f9;
+    gap: 0;
+    position: relative;
+    z-index: 2; /* 确保内容在分隔线之上 */
+}
+
+/* 左侧画布尺寸输入卡片 */
+.size-input-wrapper {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+}
+
+.size-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px;
+}
+.size-label {
+    font-weight: 500;
+    color: #475569;
+    font-size: 0.7rem;
+    margin-right: 2px;
+}
+.size-input {
+    width: 50px;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    text-align: center;
+    background: white;
+}
+.size-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+.size-sep {
+    font-weight: bold;
+    color: #64748b;
+    font-size: 0.8rem;
+}
+.size-unit {
+    color: #6b7280;
+    font-size: 0.6rem;
+    margin-left: 2px;
+}
+
+.divider {
+    position: absolute;
+    left: 68%;             /* 将分隔线放在中间位置，可调整 left 值 */
+    top: 0;
+    bottom: 0;
+    width: 5px;            /* 分隔线粗细 */
+    background: #ffffff;   /* 分隔线颜色 */
+    pointer-events: none;  /* 允许点击穿透 */
+    z-index: 1;           /* 确保在内容之上 */
+}
+
+/* 右侧高级设置卡片 */
+.trigger-right-wrapper {
+    margin-left: 20px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 0.75rem;
+    transition: background 0.2s;
+    color: #475569;
+    font-size: 0.7rem;
+}
+.trigger-right-wrapper:hover {
+    background: #eef2f6;
 }
 .trigger-arrow {
     font-size: 1rem;
+    transition: transform 0.2s;
 }
-.advanced-gap {
-    position: absolute;
-    left: 100%;
-    top: 0;
-    width: 8px;
-    height: 100%;
-    background: transparent;
-    pointer-events: auto;
+
+/* 高级面板（浮窗） */
+.advanced-panel-global {
+    background: #ffffff;
+    border-top: 1px solid #e8ecf0;
+    border-right: 1px solid #e8ecf0;
+    border-bottom: 1px solid #e8ecf0;
+    border-left: none;
+    overflow: hidden;
 }
+.panel-header {
+    padding: 12px 16px;
+    background: #f8fafc;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 41px;
+    box-sizing: border-box;
+}
+.pin-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+.panel-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+.panel-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+/* 其他通用 */
 .action-buttons {
     display: flex;
     gap: 12px;
@@ -624,6 +785,7 @@ const onColorChange = (e) => {
     background: #10b981;
     color: white;
 }
+
 .size-inputs {
     display: flex;
     align-items: center;
@@ -687,41 +849,8 @@ input[type="range"] {
     gap: 12px;
     margin-bottom: 16px;
 }
-.advanced-panel-global {
-    background: #ffffff;
-    border-top: 1px solid #e8ecf0;
-    border-right: 1px solid #e8ecf0;
-    border-bottom: 1px solid #e8ecf0;
-    border-left: none;
-    overflow: hidden;
-}
-.panel-header {
-    padding: 12px 16px;
-    background: #f8fafc;
-    font-weight: 600;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 41px;
-    box-sizing: border-box;
-}
-.pin-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    cursor: pointer;
-}
-.panel-body {
-    padding: 16px;
-    overflow-y: auto;
-    flex: 1;
-}
-.panel-body::-webkit-scrollbar {
-    width: 6px;
-}
 .param-disabled {
     opacity: 0.5;
-    pointer-events: none; /* 可选，禁止鼠标操作 */
+    pointer-events: none;
 }
 </style>
