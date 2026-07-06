@@ -2,13 +2,13 @@
     <div class="app-layout">
         <!-- 左侧边栏 -->
         <div class="sidebar">
-            <!-- 1. 标题区 -->
+            <!-- 标题区 -->
             <div class="sidebar-header">
                 <h2>🖼️ 随心拼</h2>
                 <p>自由拼接 | 创意无限</p>
             </div>
             
-            <!-- 2. 待选图片区 -->
+            <!-- 待选图片区 -->
             <div class="gallery-section">
                 <div class="section-header">
                     <span>📁 图片素材库</span>
@@ -36,11 +36,12 @@
                 </div>
             </div>
             
-            <!-- 3. 控制区 -->
+            <!-- 控制区 -->
             <ControlBar 
                 :mode="mode"
                 :spacing="spacing"
                 :outerBorderSize="outerBorderSize"
+                :showOuterBorder="showOuterBorder"
                 :bgColor="bgColor"
                 :useTransparent="useTransparent"
                 :canvasWidth="canvasWidth"
@@ -58,14 +59,15 @@
                 :presetTemplateId="presetTemplateId"
                 :presetGridType="presetGridType"
                 :presetSubModeId="presetSubModeId"
-                :posterText="posterText"
-                :posterDateFormat="posterDateFormat"
+                :textMode="textMode"
+                :textBarSize="textBarSize"
+                :posterTextLine1="posterTextLine1"
                 :posterTextColor="posterTextColor"
                 :posterFontSize="posterFontSize"
-                :posterTextPosition="posterTextPosition"
                 @mode-change="mode = $event"
                 @spacing-change="spacing = $event"
                 @outer-border-change="outerBorderSize = $event"
+                @toggle-outer-border="showOuterBorder = $event"
                 @bg-color-change="bgColor = $event"
                 @toggle-transparent="useTransparent = $event"
                 @update-canvas-width="canvasWidth = $event"
@@ -83,11 +85,11 @@
                 @update:presetGridType="presetGridType = $event"
                 @update:presetSubModeId="presetSubModeId = $event"
                 @select-sub-mode="presetSubModeId = $event"
-                @update-poster-text="posterText = $event"
-                @update-poster-date-format="posterDateFormat = $event"
+                @update-text-mode="textMode = $event"
+                @update-text-bar-size="textBarSize = $event"
+                @update-poster-text-line1="posterTextLine1 = $event"
                 @update-poster-text-color="posterTextColor = $event"
                 @update-poster-font-size="posterFontSize = $event"
-                @update-poster-text-position="posterTextPosition = $event"
                 @clear-canvas="clearCanvas"
                 @export="handleExport"
             />
@@ -106,6 +108,7 @@
                     :useTransparent="useTransparent"
                     :canvasWidth="canvasWidth"
                     :canvasHeight="canvasHeight"
+                    :showOuterBorder="showOuterBorder"
                     :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
@@ -128,6 +131,7 @@
                     :fillMode="fillMode"
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
+                    :showOuterBorder="showOuterBorder"
                     :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
@@ -145,6 +149,7 @@
                     :masonryColumnWidth="masonryColumnWidth"
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
+                    :showOuterBorder="showOuterBorder"
                     :outerBorderSize="outerBorderSize"
                     @remove="removeFromCanvas"
                     @update:images="handleCanvasImagesUpdate"
@@ -157,13 +162,15 @@
                     :subModeId="presetSubModeId"
                     :spacing="spacing"
                     :outerBorderSize="outerBorderSize"
+                    :showOuterBorder="showOuterBorder"
                     :bgColor="bgColor"
                     :useTransparent="useTransparent"
                     :fillMode="fillMode"
                     :maskShape="maskShape"
                     :cornerRadius="cornerRadius"
-                    :posterText="posterText"
-                    :posterDateFormat="posterDateFormat"
+                    :textMode="textMode"
+                    :textBarSize="textBarSize"
+                    :posterTextLine1="posterTextLine1"
                     :posterTextColor="posterTextColor"
                     :posterFontSize="posterFontSize"
                     :canvasWidth="canvasWidth"
@@ -195,6 +202,7 @@ const selectedImageIds = ref([]);
 const mode = ref('preset');
 const spacing = ref(12);
 const outerBorderSize = ref(0);
+const showOuterBorder = ref(false);
 const bgColor = ref('#ffffff');
 const useTransparent = ref(true);
 const canvasWidth = ref(800);
@@ -214,11 +222,13 @@ const presetCells = ref([]);
 const currentResolution = ref({ width: 0, height: 0 });
 const presetGridType = ref(2);
 const presetSubModeId = ref('2-horizontal');
-const posterText = ref('美好时光');
-const posterDateFormat = ref('YYYY-MM-DD');
+// 文字相关
+const textMode = ref('none'); // 'none' | 'overlay' | 'top' | 'bottom' | 'left' | 'right'
+const textBarSize = ref(80);
+const posterTextLine1 = ref('美好时光');
 const posterTextColor = ref('#ffffff');
-const posterFontSize = ref(24);
-const posterTextPosition = ref('bottom-center');
+const posterFontSize = ref(32);
+
 let nextId = 1;
 
 // 画布组件的 ref
@@ -382,15 +392,15 @@ const handleExport = async () => {
 };
 
 // 监听参数变化更新分辨率
-watch([mode, spacing, outerBorderSize, bgColor, useTransparent, canvasImages,
+watch([mode, spacing, outerBorderSize, showOuterBorder, bgColor, useTransparent, canvasImages,
         gridRows, gridCols, gridLayout, masonryCols, masonryColumnWidth,
         cellWidth, cellHeight, fillMode, maskShape, cornerRadius,
-        presetGridType, presetSubModeId, presetCells, posterText, posterDateFormat,
-        posterTextColor, posterFontSize, posterTextPosition], () => {
+        presetGridType, presetSubModeId, presetCells,
+        textMode, textBarSize, posterTextLine1, posterTextColor, posterFontSize], () => {
     nextTick(() => updateResolution());
 }, { deep: true, immediate: true });
 
-// 监听模式切换，确保画布组件完全渲染
+// 监听模式切换
 watch(() => mode.value, async () => {
     await nextTick();
     setTimeout(() => {
@@ -414,14 +424,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 样式保持不变（与您原有的一致） */
 .app-layout {
     display: flex;
     width: 100%;
     height: 100%;
     background: #f5f7fa;
 }
-
-/* 左侧边栏 */
 .sidebar {
     width: 320px;
     background: #ffffff;
@@ -431,8 +440,6 @@ onUnmounted(() => {
     height: 100vh;
     overflow: visible;
 }
-
-/* 标题区 */
 .sidebar-header {
     padding: 20px 20px 12px;
     border-bottom: 1px solid #eef2f6;
@@ -451,8 +458,6 @@ onUnmounted(() => {
     color: #6b7280;
     margin-top: 4px;
 }
-
-/* 待选图片区 */
 .gallery-section {
     flex: 1;
     display: flex;
@@ -560,8 +565,6 @@ onUnmounted(() => {
     flex-shrink: 0;
     border-top: 1px solid #fee2e2;
 }
-
-/* 右侧拼接区 */
 .canvas-area {
     flex: 1;
     display: flex;

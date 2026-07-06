@@ -12,13 +12,27 @@ export function usePresetCanvas(props, emit) {
     // 1. 状态管理
     const state = usePresetState(props, emit);
 
-    // 2. 绘制函数（斜切、图文）
-    const drawFunctions = usePresetDrawFunctions(props, state);
+    const {
+        cells,
+        currentLayout,
+        selectedCellIndex,
+        isTextMode,
+        isTrapezoidMode,
+        textOffsetX,
+        textOffsetY,
+        selectCell: stateSelectCell,
+        removeCellImage: stateRemoveCellImage,
+        addImageToCell: stateAddImageToCell,
+        clearCache,
+    } = state;
 
-    // 3. Canvas 引用
+    // 2. Canvas 引用
     const canvasRef = ref(null);
 
-    // 4. 渲染模块
+    // 3. 绘制函数
+    const drawFunctions = usePresetDrawFunctions(props, state);
+
+    // 4. 渲染模块（传入 props 和 state）
     const renderModule = usePresetRender(props, state, drawFunctions, canvasRef);
     const { renderCanvas, cancelRender } = renderModule;
 
@@ -30,32 +44,44 @@ export function usePresetCanvas(props, emit) {
 
     // 7. 初始化布局
     const initLayout = (subId) => {
-        const ok = state.initLayout(presetLayouts, subId);
-        if (ok) {
-            renderCanvas();
+        const layout = presetLayouts[subId];
+        if (!layout) {
+            console.warn('未找到布局定义:', subId);
+            return false;
         }
+        state.initLayout(layout);
+        // 重置文字偏移
+        textOffsetX.value = 0;
+        textOffsetY.value = 0;
+        renderCanvas();
+        return true;
     };
 
     // 8. 封装方法
     const selectCell = (idx) => {
-        state.selectCell(idx);
-        renderCanvas(); // 刷新高亮
+        stateSelectCell(idx);
+        renderCanvas();
     };
 
     const removeCellImage = (idx) => {
-        state.removeCellImage(idx);
+        stateRemoveCellImage(idx);
         renderCanvas();
     };
 
     const addImageToSelectedCell = async (imageId, imageData) => {
-        const idx = state.selectedCellIndex.value;
+        const idx = selectedCellIndex.value;
         if (idx === -1) {
             alert('请先点击一个格子');
             return false;
         }
-        const ok = state.addImageToCell(idx, imageId, imageData);
+        const cell = cells.value[idx];
+        if (cell.type !== 'image') {
+            alert('该格子不能添加图片');
+            return false;
+        }
+        const ok = stateAddImageToCell(idx, imageId, imageData);
         if (ok) {
-            state.selectCell(-1);
+            stateSelectCell(-1);
             await renderCanvas();
             return true;
         }
@@ -63,12 +89,12 @@ export function usePresetCanvas(props, emit) {
     };
 
     const addImageToEmptyCell = async (imageId, imageData) => {
-        const idx = state.findEmptyCell();
-        if (idx === -1) {
-            alert('所有格子都已填满');
+        const emptyIndex = cells.value.findIndex(cell => cell.type === 'image' && !cell.imageId);
+        if (emptyIndex === -1) {
+            alert('没有可用的图片格子');
             return false;
         }
-        const ok = state.addImageToCell(idx, imageId, imageData);
+        const ok = stateAddImageToCell(emptyIndex, imageId, imageData);
         if (ok) {
             await renderCanvas();
             return true;
@@ -76,7 +102,7 @@ export function usePresetCanvas(props, emit) {
         return false;
     };
 
-    const hasImages = () => state.cells.value.some(c => c.imageId);
+    const hasImages = () => cells.value.some(c => c.imageId);
 
     // 9. 生命周期
     onMounted(() => {
@@ -86,7 +112,6 @@ export function usePresetCanvas(props, emit) {
     onUnmounted(() => {
         interaction.unmount(canvasRef);
         cancelRender();
-        // 清理斜切多边形
         delete window.__trapezoidPolys;
     });
 
@@ -94,27 +119,34 @@ export function usePresetCanvas(props, emit) {
     watch(() => props.subModeId, (newId) => {
         if (newId) {
             initLayout(newId);
-            state.selectCell(-1);
+            stateSelectCell(-1);
         }
     }, { immediate: true });
 
+    // 监听影响渲染的参数
     watch([() => props.spacing, () => props.bgColor, () => props.useTransparent,
         () => props.canvasWidth, () => props.canvasHeight, () => props.maskShape,
         () => props.cornerRadius, () => props.outerBorderSize, () => props.fillMode,
-        () => props.posterText, () => props.posterDateFormat, () => props.posterTextColor,
-        () => props.posterFontSize], () => {
-        if (state.currentLayout.value) {
+        () => props.enableTextOverlay,
+        () => props.posterTextLine1,
+        () => props.posterTextPosition,
+        () => props.posterTextColor,
+        () => props.posterFontSize,
+        // 监听格子变化
+        () => cells.value,
+        () => textOffsetX.value,
+        () => textOffsetY.value,
+    ], () => {
+        if (currentLayout.value) {
             renderCanvas();
         }
     }, { deep: true });
 
     // 11. 暴露接口
     return {
-        // 状态
-        cells: state.cells,
-        selectedCellIndex: state.selectedCellIndex,
+        cells,
+        selectedCellIndex,
         canvasRef,
-        // 方法
         initLayout,
         selectCell,
         removeCellImage,
@@ -124,11 +156,9 @@ export function usePresetCanvas(props, emit) {
         getResolution: exportModule.getResolution,
         hasImages,
         renderCanvas,
-        // 用于主组件点击检测
         getCellIndexFromPoint: interaction.getCellIndexFromPoint,
         getDeleteButtonIndex: interaction.getDeleteButtonIndex,
-        // 计算属性
-        isTextMode: state.isTextMode,
-        isTrapezoidMode: state.isTrapezoidMode,
+        isTextMode,
+        isTrapezoidMode,
     };
 }

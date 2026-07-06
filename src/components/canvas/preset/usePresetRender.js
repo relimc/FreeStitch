@@ -3,13 +3,75 @@
 import { loadImage } from '../utils/canvasHelpers.js';
 import { drawEmptyCell, applyMask } from './renderHelpers.js';
 
+// 工具：根据文字模式调整矩形
+function getAdjustedRects(layout, canvasW, canvasH, gap, textMode, textBarSize) {
+    const originalRects = layout.getRects(canvasW, canvasH, gap);
+    let imageRects = [];
+    let textRect = null;
+
+    if (textMode === 'none' || textMode === 'overlay') {
+        return { imageRects: originalRects, textRect: null };
+    }
+
+    const barSize = Math.min(textBarSize, textMode === 'left' || textMode === 'right' ? canvasW : canvasH);
+    let offsetX = 0, offsetY = 0;
+    let imgW = canvasW, imgH = canvasH;
+
+    if (textMode === 'top') {
+        imgH = canvasH - barSize - gap;
+        offsetY = barSize + gap;
+    } else if (textMode === 'bottom') {
+        imgH = canvasH - barSize - gap;
+        offsetY = 0;
+    } else if (textMode === 'left') {
+        imgW = canvasW - barSize - gap;
+        offsetX = barSize + gap;
+    } else if (textMode === 'right') {
+        imgW = canvasW - barSize - gap;
+        offsetX = 0;
+    }
+
+    const adjustedRects = layout.getRects(imgW, imgH, gap);
+    imageRects = adjustedRects.map(r => ({
+        ...r,
+        x: r.x + offsetX,
+        y: r.y + offsetY
+    }));
+
+    let tx, ty, tw, th;
+    if (textMode === 'top') {
+        tx = 0; ty = 0; tw = canvasW; th = barSize;
+    } else if (textMode === 'bottom') {
+        tx = 0; ty = canvasH - barSize; tw = canvasW; th = barSize;
+    } else if (textMode === 'left') {
+        tx = 0; ty = 0; tw = barSize; th = canvasH;
+    } else if (textMode === 'right') {
+        tx = canvasW - barSize; ty = 0; tw = barSize; th = canvasH;
+    }
+    textRect = { x: tx, y: ty, w: tw, h: th };
+
+    return { imageRects, textRect };
+}
+
 export function usePresetRender(props, state, drawFunctions, canvasRef) {
-    const { cells, currentLayout, imageOffsets, deleteButtonRects, isTextMode, isTrapezoidMode } = state;
+    const {
+        cells,
+        currentLayout,
+        imageOffsets,
+        deleteButtonRects,
+        selectedCellIndex,
+        isTextMode,
+        isTrapezoidMode,
+        getCachedImage,
+        setCachedImage,
+        textOffsetX,
+        textOffsetY,
+    } = state;
+
     const { drawTrapezoid, drawTextMode } = drawFunctions;
 
     let renderRequestId = null;
 
-    // 绘制删除按钮（内部函数）
     const drawDeleteButton = (ctx, x, y, w, h) => {
         const btnSize = Math.min(20, Math.min(w, h) * 0.15);
         const btnX = x + w - btnSize - 4;
@@ -79,7 +141,15 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                         return;
                     }
                     const gap = props.spacing;
-                    const rects = layout.getRects(props.canvasWidth, props.canvasHeight, gap);
+
+                    const { imageRects, textRect } = getAdjustedRects(
+                        layout,
+                        props.canvasWidth,
+                        props.canvasHeight,
+                        gap,
+                        props.textMode,
+                        props.textBarSize
+                    );
 
                     if (props.useTransparent) {
                         ctx.clearRect(0, 0, W, H);
@@ -91,9 +161,10 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                     ctx.save();
                     ctx.translate(borderSize, borderSize);
 
-                    for (let i = 0; i < Math.min(cells.value.length, rects.length); i++) {
+                    // 绘制图片格子
+                    for (let i = 0; i < Math.min(cells.value.length, imageRects.length); i++) {
                         const cell = cells.value[i];
-                        const rect = rects[i];
+                        const rect = imageRects[i];
                         const { x, y, w, h } = rect;
 
                         if (!props.useTransparent) {
@@ -101,82 +172,130 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                             ctx.fillRect(x, y, w, h);
                         }
 
-                        if (cell && cell.imageData) {
-                            let img = state.getCachedImage(cell.imageId);
+                        if (cell.type === 'image' && cell.imageData) {
+                            let img = getCachedImage(cell.imageId);
                             if (!img) {
-                                img = await loadImage(cell.imageData);
-                                state.setCachedImage(cell.imageId, img);
+                                try {
+                                    img = await loadImage(cell.imageData);
+                                    if (img) setCachedImage(cell.imageId, img);
+                                } catch (err) {
+                                    console.error('图片加载失败:', cell.imageId, err);
+                                    img = null;
+                                }
                             }
-                            let drawW, drawH, offsetX, offsetY;
-                            if (props.fillMode === 'cover') {
-                                const scale = Math.max(w / img.width, h / img.height);
-                                drawW = img.width * scale;
-                                drawH = img.height * scale;
-                                offsetX = (w - drawW) / 2;
-                                offsetY = (h - drawH) / 2;
+                            if (img && img.width > 0 && img.height > 0) {
+                                let drawW, drawH, offsetX, offsetY;
+                                if (props.fillMode === 'cover') {
+                                    const scale = Math.max(w / img.width, h / img.height);
+                                    drawW = img.width * scale;
+                                    drawH = img.height * scale;
+                                    offsetX = (w - drawW) / 2;
+                                    offsetY = (h - drawH) / 2;
+                                } else {
+                                    const scale = Math.min(w / img.width, h / img.height);
+                                    drawW = img.width * scale;
+                                    drawH = img.height * scale;
+                                    offsetX = (w - drawW) / 2;
+                                    offsetY = (h - drawH) / 2;
+                                }
+
+                                const cellOffX = cell.offsetX || 0;
+                                const cellOffY = cell.offsetY || 0;
+                                let maxOffsetX = 0, maxOffsetY = 0;
+                                if (props.fillMode === 'cover') {
+                                    maxOffsetX = Math.max(0, drawW - w);
+                                    maxOffsetY = Math.max(0, drawH - h);
+                                } else {
+                                    maxOffsetX = Math.max(0, w - drawW);
+                                    maxOffsetY = Math.max(0, h - drawH);
+                                }
+                                const clampedX = Math.max(-maxOffsetX, Math.min(maxOffsetX, cellOffX));
+                                const clampedY = Math.max(-maxOffsetY, Math.min(maxOffsetY, cellOffY));
+                                const drawX = x + offsetX + clampedX;
+                                const drawY = y + offsetY + clampedY;
+
+                                ctx.save();
+                                ctx.beginPath();
+                                ctx.rect(x, y, w, h);
+                                ctx.clip();
+                                if (props.maskShape !== 'none') {
+                                    applyMask(ctx, props.maskShape, props.cornerRadius, x, y, w, h);
+                                }
+                                ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                                ctx.restore();
+
+                                // 删除按钮
+                                const btnRect = drawDeleteButton(ctx, x, y, w, h);
+                                deleteButtonRects.value.push({
+                                    index: i,
+                                    x: btnRect.x,
+                                    y: btnRect.y,
+                                    w: btnRect.w,
+                                    h: btnRect.h
+                                });
                             } else {
-                                const scale = Math.min(w / img.width, h / img.height);
-                                drawW = img.width * scale;
-                                drawH = img.height * scale;
-                                offsetX = (w - drawW) / 2;
-                                offsetY = (h - drawH) / 2;
+                                drawEmptyCell(ctx, x, y, w, h, props.useTransparent);
                             }
-
-                            const off = imageOffsets.value.get(cell.imageId) || { offsetX: 0, offsetY: 0 };
-                            let maxOffsetX = 0, maxOffsetY = 0;
-                            if (props.fillMode === 'cover') {
-                                maxOffsetX = Math.max(0, drawW - w);
-                                maxOffsetY = Math.max(0, drawH - h);
-                            } else {
-                                maxOffsetX = Math.max(0, w - drawW);
-                                maxOffsetY = Math.max(0, h - drawH);
-                            }
-                            const clampedX = Math.max(-maxOffsetX, Math.min(maxOffsetX, off.offsetX));
-                            const clampedY = Math.max(-maxOffsetY, Math.min(maxOffsetY, off.offsetY));
-                            if (clampedX !== off.offsetX || clampedY !== off.offsetY) {
-                                imageOffsets.value.set(cell.imageId, { offsetX: clampedX, offsetY: clampedY });
-                            }
-
-                            const drawX = x + offsetX + clampedX;
-                            const drawY = y + offsetY + clampedY;
-
-                            ctx.save();
-                            ctx.beginPath();
-                            ctx.rect(x, y, w, h);
-                            ctx.clip();
-
-                            if (props.maskShape !== 'none') {
-                                applyMask(ctx, props.maskShape, props.cornerRadius, x, y, w, h);
-                            }
-
-                            ctx.drawImage(img, drawX, drawY, drawW, drawH);
-                            ctx.restore();
-
-                            // 删除按钮
-                            const btnRect = drawDeleteButton(ctx, x, y, w, h);
-                            deleteButtonRects.value.push({
-                                index: i,
-                                x: btnRect.x,
-                                y: btnRect.y,
-                                w: btnRect.w,
-                                h: btnRect.h
-                            });
                         } else {
                             drawEmptyCell(ctx, x, y, w, h, props.useTransparent);
                         }
+                    }
 
-                        // 选中高亮
-                        if (state.selectedCellIndex.value === i) {
-                            ctx.save();
+                    // 选中高亮
+                    ctx.save();
+                    for (let i = 0; i < Math.min(cells.value.length, imageRects.length); i++) {
+                        if (selectedCellIndex.value === i) {
+                            const rect = imageRects[i];
                             ctx.strokeStyle = '#e74c3c';
                             ctx.lineWidth = 3;
                             ctx.setLineDash([]);
-                            ctx.strokeRect(x, y, w, h);
-                            ctx.restore();
+                            ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
                         }
                     }
-
                     ctx.restore();
+
+                    // 绘制文字
+                    if (props.textMode !== 'none' && props.posterTextLine1) {
+                        ctx.save();
+                        const text = props.posterTextLine1;
+                        const fontSize = props.posterFontSize || 32;
+                        const color = props.posterTextColor || '#ffffff';
+                        ctx.fillStyle = color;
+                        ctx.font = `bold ${fontSize}px "PingFang SC", system-ui, sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+
+                        let cx, cy;
+                        if (props.textMode === 'overlay') {
+                            // 叠加模式：相对于画布中心+偏移
+                            const positions = {
+                                'top-left': { x: 0, y: 0 },
+                                'top-center': { x: props.canvasWidth / 2, y: 0 },
+                                'top-right': { x: props.canvasWidth, y: 0 },
+                                'center-left': { x: 0, y: props.canvasHeight / 2 },
+                                'center': { x: props.canvasWidth / 2, y: props.canvasHeight / 2 },
+                                'center-right': { x: props.canvasWidth, y: props.canvasHeight / 2 },
+                                'bottom-left': { x: 0, y: props.canvasHeight },
+                                'bottom-center': { x: props.canvasWidth / 2, y: props.canvasHeight },
+                                'bottom-right': { x: props.canvasWidth, y: props.canvasHeight },
+                            };
+                            // 叠加模式下位置使用 'center' 固定，但可以增加拖拽偏移
+                            const pos = positions['center'];
+                            const offX = textOffsetX?.value || 0;
+                            const offY = textOffsetY?.value || 0;
+                            cx = pos.x + offX;
+                            cy = pos.y + offY;
+                        } else {
+                            // 独立条模式
+                            if (!textRect) { ctx.restore(); return; }
+                            cx = textRect.x + textRect.w / 2;
+                            cy = textRect.y + textRect.h / 2;
+                        }
+                        ctx.fillText(text, cx, cy);
+                        ctx.restore();
+                    }
+
+                    ctx.restore(); // 取消 translate
                 }
 
                 renderRequestId = null;

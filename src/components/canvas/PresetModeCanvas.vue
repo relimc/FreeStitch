@@ -25,10 +25,16 @@ const props = defineProps({
     cornerRadius: { type: Number, default: 20 },
     posterText: { type: String, default: '美好时光' },
     posterDateFormat: { type: String, default: 'YYYY-MM-DD' },
-    posterTextColor: { type: String, default: '#ffffff' },
-    posterFontSize: { type: Number, default: 24 },
     canvasWidth: { type: Number, default: 800 },
-    canvasHeight: { type: Number, default: 600 }
+    canvasHeight: { type: Number, default: 600 },
+    posterTextLine1: { type: String, default: '美好时光' },
+    posterTextLine2: { type: String, default: '' },
+    posterFontSize: { type: Number, default: 24 },
+    enableTextOverlay: { type: Boolean, default: false },
+    posterTextPosition: { type: String, default: 'center' },
+    posterTextColor: { type: String, default: '#ffffff' },
+    textMode: { type: String, default: 'none' },
+    textBarSize: { type: Number, default: 80 },
 });
 
 const emit = defineEmits(['update:cells', 'select-cell']);

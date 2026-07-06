@@ -12,7 +12,7 @@
             </button>
         </div>
         
-        <!-- 通用参数：内间距 + 外边框 + 背景 -->
+        <!-- 通用参数 -->
         <div class="param-group">
             <!-- 内间距 -->
             <div class="param-row">
@@ -68,7 +68,7 @@
         <!-- 高级选项容器 -->
         <div class="advanced-container">
             <div class="advanced-trigger" ref="advancedTriggerRef">
-                <!-- 左侧：画布尺寸输入（独立卡片） -->
+                <!-- 画布尺寸输入 -->
                 <div class="size-input-wrapper">
                     <div class="size-input-group">
                         <span class="size-label">画布尺寸</span>
@@ -93,10 +93,9 @@
                     </div>
                 </div>
 
-                <!-- 分隔线 -->
                 <div class="divider"></div>
 
-                <!-- 右侧：高级设置（独立卡片） -->
+                <!-- 高级设置触发 -->
                 <div 
                     class="trigger-right-wrapper"
                     @mouseenter="handleMouseEnter"
@@ -125,14 +124,14 @@
                         </label>
                     </div>
                     <div class="panel-body">
-                        <!-- 自由模式参数 -->
+                        <!-- 自由模式 -->
                         <div v-if="mode === 'free'" class="param-group-inline">
                             <div class="param-row" style="color: #94a3b8; font-size: 0.7rem;">
                                 画布尺寸已在上方调整
                             </div>
                         </div>
                         
-                        <!-- 网格模式参数 -->
+                        <!-- 网格模式 -->
                         <div v-if="mode === 'grid'" class="param-group-inline">
                             <div class="param-row">
                                 <span class="param-label">布局</span>
@@ -161,7 +160,7 @@
                             </div>
                         </div>
                         
-                        <!-- 瀑布流模式参数 -->
+                        <!-- 瀑布流模式 -->
                         <div v-if="mode === 'masonry'" class="param-group-inline">
                             <div class="param-row">
                                 <span class="param-label">列数</span>
@@ -179,7 +178,7 @@
                             </div>
                         </div>
                         
-                        <!-- 预设模式参数 -->
+                        <!-- 预设模式 -->
                         <div v-if="mode === 'preset'" class="param-group-inline">
                             <div class="preset-category">
                                 <div class="category-title">选择宫格类型</div>
@@ -191,12 +190,6 @@
                                         @click="selectGridType(num)"
                                     >
                                         {{ num }}宫格
-                                    </button>
-                                    <button 
-                                        :class="['category-btn', { active: presetGridType === 'text' }]"
-                                        @click="selectGridType('text')"
-                                    >
-                                        图文模式
                                     </button>
                                 </div>
                             </div>
@@ -212,6 +205,50 @@
                                     >
                                         {{ sub.name }}
                                     </button>
+                                </div>
+                            </div>
+
+                            <!-- 文字控制 -->
+                            <div class="param-divider"></div>
+                            <div class="param-row">
+                                <span class="param-label">文字模式</span>
+                                <select :value="textMode" @input="$emit('update-text-mode', $event.target.value)">
+                                    <option value="none">无文字</option>
+                                    <option value="overlay">叠加（浮在图上）</option>
+                                    <option value="top">顶部条</option>
+                                    <option value="bottom">底部条</option>
+                                    <option value="left">左侧条</option>
+                                    <option value="right">右侧条</option>
+                                </select>
+                            </div>
+
+                            <!-- 独立条尺寸（仅当选择条模式时显示） -->
+                            <div v-if="textMode !== 'none' && textMode !== 'overlay'" class="param-row">
+                                <span class="param-label">条尺寸</span>
+                                <input type="range" :value="textBarSize" min="40" max="200" @input="$emit('update-text-bar-size', parseInt($event.target.value))">
+                                <div class="number-input-wrapper">
+                                    <input type="number" :value="textBarSize" min="40" max="200" @input="$emit('update-text-bar-size', parseInt($event.target.value))">
+                                    <span>px</span>
+                                </div>
+                            </div>
+
+                            <!-- 文字内容（任意模式有文字时显示） -->
+                            <div v-if="textMode !== 'none'" class="text-overlay-controls">
+                                <div class="param-row">
+                                    <span class="param-label">文字</span>
+                                    <input type="text" :value="posterTextLine1" @input="$emit('update-poster-text-line1', $event.target.value)" class="text-input" placeholder="输入文字">
+                                </div>
+                                <div class="param-row">
+                                    <span class="param-label">颜色</span>
+                                    <input type="color" :value="posterTextColor" @input="$emit('update-poster-text-color', $event.target.value)">
+                                </div>
+                                <div class="param-row">
+                                    <span class="param-label">字号</span>
+                                    <input type="range" :value="posterFontSize" min="12" max="72" @input="$emit('update-poster-font-size', parseInt($event.target.value))">
+                                    <div class="number-input-wrapper">
+                                        <input type="number" :value="posterFontSize" min="12" max="72" @input="$emit('update-poster-font-size', parseInt($event.target.value))">
+                                        <span>px</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -258,7 +295,14 @@ const emit = defineEmits([
     'clear-canvas', 'export',
     'select-sub-mode',
     'update:presetGridType', 'update:presetSubModeId',
-    'outer-border-change'
+    'outer-border-change',
+    'update-enable-text-overlay',
+    'update-poster-text-line1',
+    'update-poster-text-position',
+    'update-poster-text-color',
+    'update-poster-font-size',
+    'update-text-mode',
+    'update-text-bar-size',
 ]);
 
 const props = defineProps({
@@ -280,10 +324,18 @@ const props = defineProps({
     maskShape: { type: String, default: 'none' },
     cornerRadius: { type: Number, default: 20 },
     presetGridType: { type: [Number, String], default: 2 },
-    presetSubModeId: { type: String, default: '2-horizontal' }
+    presetSubModeId: { type: String, default: '2-horizontal' },
+    // 文字叠加相关
+    enableTextOverlay: { type: Boolean, default: false },
+    posterTextLine1: { type: String, default: '美好时光' },
+    posterTextPosition: { type: String, default: 'center' },
+    posterTextColor: { type: String, default: '#ffffff' },
+    posterFontSize: { type: Number, default: 32 },
+    textMode: { type: String, default: 'none' },
+    textBarSize: { type: Number, default: 80 },
 });
 
-// ---- 验证函数 ----
+// 验证函数
 const validateSpacing = (e) => {
     let val = parseInt(e.target.value);
     if (isNaN(val)) val = 0;
@@ -304,7 +356,7 @@ const validateOuterBorder = (e) => {
     }
 };
 
-// ---- 预设子模式库 ----
+// 预设子模式库
 const subModeLibrary = {
     2: [
         { id: '2-horizontal', name: '横向双拼' },
@@ -372,9 +424,6 @@ const subModeLibrary = {
         { id: '9-4-1-4', name: '4-1-4' },
         { id: '9-1-2-3-3', name: '1-2-3-3' },
         { id: '9-3-3-3-var', name: '3-3-3(变种)' }
-    ],
-    text: [
-        { id: 'text-simple', name: '图文模式' }
     ]
 };
 
@@ -400,7 +449,7 @@ const currentModeLabel = computed(() => {
     return opt ? opt.label : '预设';
 });
 
-// ---- 高级面板控制 ----
+// 高级面板控制
 const showAdvancedPanel = ref(false);
 const keepPanelOpen = ref(false);
 const advancedTriggerRef = ref(null);
@@ -620,13 +669,11 @@ const onColorChange = (e) => {
     width: 120px;
 }
 
-/* ========== 高级容器 ========== */
+/* 高级容器 */
 .advanced-container {
     position: relative;
     background: #f1f5f9;
 }
-
-/* 分隔线：贯穿整个 advanced-container 高度 */
 .advanced-container::after {
     content: '';
     position: absolute;
@@ -634,13 +681,12 @@ const onColorChange = (e) => {
     top: 0;
     bottom: 0;
     width: 1px;
-    background: #b0b8c4; /* 灰色分隔线，略深于背景 */
+    background: #b0b8c4;
     transform: translateX(-50%);
     pointer-events: none;
     z-index: 1;
 }
 
-/* 触发器行 */
 .advanced-trigger {
     display: flex;
     align-items: center;
@@ -649,16 +695,14 @@ const onColorChange = (e) => {
     background: #f1f5f9;
     gap: 0;
     position: relative;
-    z-index: 2; /* 确保内容在分隔线之上 */
+    z-index: 2;
 }
 
-/* 左侧画布尺寸输入卡片 */
 .size-input-wrapper {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
 }
-
 .size-input-group {
     display: flex;
     align-items: center;
@@ -697,16 +741,15 @@ const onColorChange = (e) => {
 
 .divider {
     position: absolute;
-    left: 68%;             /* 将分隔线放在中间位置，可调整 left 值 */
+    left: 68%;
     top: 0;
     bottom: 0;
-    width: 5px;            /* 分隔线粗细 */
-    background: #ffffff;   /* 分隔线颜色 */
-    pointer-events: none;  /* 允许点击穿透 */
-    z-index: 1;           /* 确保在内容之上 */
+    width: 5px;
+    background: #ffffff;
+    pointer-events: none;
+    z-index: 1;
 }
 
-/* 右侧高级设置卡片 */
 .trigger-right-wrapper {
     margin-left: 20px;
     flex: 0 0 auto;
@@ -727,7 +770,7 @@ const onColorChange = (e) => {
     transition: transform 0.2s;
 }
 
-/* 高级面板（浮窗） */
+/* 高级面板 */
 .advanced-panel-global {
     background: #ffffff;
     border-top: 1px solid #e8ecf0;
@@ -852,5 +895,55 @@ input[type="range"] {
 .param-disabled {
     opacity: 0.5;
     pointer-events: none;
+}
+
+/* 文字叠加 toggle 开关 */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #ccc;
+    transition: 0.3s;
+    border-radius: 22px;
+}
+.slider::before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+.toggle-switch input:checked + .slider {
+    background: #3b82f6;
+}
+.toggle-switch input:checked + .slider::before {
+    transform: translateX(18px);
+}
+.text-overlay-controls {
+    border-left: 2px solid #e2e8f0;
+    padding-left: 12px;
+    margin-top: 8px;
+}
+.text-input {
+    flex: 1;
+    min-width: 100px;
 }
 </style>
