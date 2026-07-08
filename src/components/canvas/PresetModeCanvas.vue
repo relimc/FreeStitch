@@ -35,6 +35,7 @@ const props = defineProps({
     posterTextColor: { type: String, default: '#ffffff' },
     textMode: { type: String, default: 'none' },
     textBarSize: { type: Number, default: 80 },
+    textVertical: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(['update:cells', 'select-cell']);

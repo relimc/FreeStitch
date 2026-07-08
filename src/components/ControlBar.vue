@@ -243,6 +243,17 @@
                                     <input type="color" :value="posterTextColor" @input="$emit('update-poster-text-color', $event.target.value)">
                                 </div>
                                 <div class="param-row">
+                                    <span class="param-label">方向</span>
+                                    <button 
+                                        class="direction-btn" 
+                                        :class="{ active: textVertical }"
+                                        @click="$emit('update-text-vertical', !textVertical)"
+                                    >
+                                        <span class="dir-icon">{{ textVertical ? '📄' : '🌐' }}</span>
+                                        {{ textVertical ? '竖排' : '横排' }}
+                                    </button>
+                                </div>
+                                <div class="param-row">
                                     <span class="param-label">字号</span>
                                     <input type="range" :value="posterFontSize" min="12" max="72" @input="$emit('update-poster-font-size', parseInt($event.target.value))">
                                     <div class="number-input-wrapper">
@@ -303,6 +314,8 @@ const emit = defineEmits([
     'update-poster-font-size',
     'update-text-mode',
     'update-text-bar-size',
+    'update-text-angle',
+    'update-text-vertical'
 ]);
 
 const props = defineProps({
@@ -333,6 +346,8 @@ const props = defineProps({
     posterFontSize: { type: Number, default: 32 },
     textMode: { type: String, default: 'none' },
     textBarSize: { type: Number, default: 80 },
+    textAngle: { type: Number, default: 0 },
+    textVertical: { type: Boolean, default: false }
 });
 
 // 验证函数
@@ -945,5 +960,44 @@ input[type="range"] {
 .text-input {
     flex: 1;
     min-width: 100px;
+}
+.text-overlay-controls {
+    border-left: 2px solid #e2e8f0;
+    padding-left: 12px;
+    margin-top: 8px;
+}
+.text-overlay-controls .param-row {
+    margin-bottom: 10px;
+}
+.text-overlay-controls .param-row:last-child {
+    margin-bottom: 0;
+}
+.direction-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    background: white;
+    color: #475569;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.direction-btn .dir-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+.direction-btn:hover {
+    background: #f1f5f9;
+}
+.direction-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+.direction-btn.active:hover {
+    background: #2563eb;
 }
 </style>

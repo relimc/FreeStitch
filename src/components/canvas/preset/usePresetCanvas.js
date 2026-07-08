@@ -32,7 +32,7 @@ export function usePresetCanvas(props, emit) {
     // 3. 绘制函数
     const drawFunctions = usePresetDrawFunctions(props, state);
 
-    // 4. 渲染模块（传入 props 和 state）
+    // 4. 渲染模块
     const renderModule = usePresetRender(props, state, drawFunctions, canvasRef);
     const { renderCanvas, cancelRender } = renderModule;
 
@@ -50,7 +50,6 @@ export function usePresetCanvas(props, emit) {
             return false;
         }
         state.initLayout(layout);
-        // 重置文字偏移
         textOffsetX.value = 0;
         textOffsetY.value = 0;
         renderCanvas();
@@ -115,7 +114,7 @@ export function usePresetCanvas(props, emit) {
         delete window.__trapezoidPolys;
     });
 
-    // 10. 监听
+    // 10. 监听（加入 textMode 和 textBarSize）
     watch(() => props.subModeId, (newId) => {
         if (newId) {
             initLayout(newId);
@@ -123,16 +122,25 @@ export function usePresetCanvas(props, emit) {
         }
     }, { immediate: true });
 
-    // 监听影响渲染的参数
-    watch([() => props.spacing, () => props.bgColor, () => props.useTransparent,
-        () => props.canvasWidth, () => props.canvasHeight, () => props.maskShape,
-        () => props.cornerRadius, () => props.outerBorderSize, () => props.fillMode,
-        () => props.enableTextOverlay,
+    // 关键：监听所有影响渲染的 props，包括文字模式
+    watch([
+        () => props.spacing,
+        () => props.bgColor,
+        () => props.useTransparent,
+        () => props.canvasWidth,
+        () => props.canvasHeight,
+        () => props.maskShape,
+        () => props.cornerRadius,
+        () => props.outerBorderSize,
+        () => props.fillMode,
+        // 文字相关
+        () => props.textMode,
+        () => props.textBarSize,
         () => props.posterTextLine1,
-        () => props.posterTextPosition,
         () => props.posterTextColor,
         () => props.posterFontSize,
-        // 监听格子变化
+        () => props.textVertical,
+        // 格子变化
         () => cells.value,
         () => textOffsetX.value,
         () => textOffsetY.value,

@@ -64,6 +64,10 @@
                 :posterTextLine1="posterTextLine1"
                 :posterTextColor="posterTextColor"
                 :posterFontSize="posterFontSize"
+                :textAngle="textAngle"
+                :textVertical="textVertical" 
+                @update-text-vertical="textVertical = $event"
+                @update-text-angle="textAngle = $event"
                 @mode-change="mode = $event"
                 @spacing-change="spacing = $event"
                 @outer-border-change="outerBorderSize = $event"
@@ -175,6 +179,8 @@
                     :posterFontSize="posterFontSize"
                     :canvasWidth="canvasWidth"
                     :canvasHeight="canvasHeight"
+                    :textAngle="textAngle"
+                    :textVertical="textVertical"
                     @update:cells="presetCells = $event"
                     @select-cell="setSelectedPresetCell"
                 />
@@ -228,6 +234,8 @@ const textBarSize = ref(80);
 const posterTextLine1 = ref('美好时光');
 const posterTextColor = ref('#ffffff');
 const posterFontSize = ref(32);
+const textAngle = ref(0); // 角度，0/90/180/270
+const textVertical = ref(false);
 
 let nextId = 1;
 
