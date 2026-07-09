@@ -114,16 +114,11 @@ export function usePresetExport(props, state, drawFunctions) {
         ctx.save();
         ctx.translate(borderSize, borderSize);
 
-        // 绘制图片格子
+        // 绘制图片格子（蒙版修复：先裁剪，再背景，再图片）
         for (let i = 0; i < Math.min(cells.value.length, imageRects.length); i++) {
             const cell = cells.value[i];
             const rect = imageRects[i];
             const { x, y, w, h } = rect;
-
-            if (!useTransparent) {
-                ctx.fillStyle = '#f1f5f9';
-                ctx.fillRect(x, y, w, h);
-            }
 
             if (cell.type === 'image' && cell.imageData) {
                 let img = getCachedImage(cell.imageId);
@@ -151,13 +146,21 @@ export function usePresetExport(props, state, drawFunctions) {
                     const drawX = x + offsetX + cellOffX;
                     const drawY = y + offsetY + cellOffY;
 
+                    // ✅ 修复蒙版：先裁剪，再背景，再图片
                     ctx.save();
                     ctx.beginPath();
-                    ctx.rect(x, y, w, h);
-                    ctx.clip();
                     if (props.maskShape !== 'none') {
                         applyMask(ctx, props.maskShape, props.cornerRadius, x, y, w, h);
+                    } else {
+                        ctx.rect(x, y, w, h);
                     }
+                    ctx.clip();
+
+                    if (!useTransparent) {
+                        ctx.fillStyle = props.bgColor;
+                        ctx.fillRect(x, y, w, h);
+                    }
+
                     ctx.drawImage(img, drawX, drawY, drawW, drawH);
                     ctx.restore();
                 } else {
@@ -168,7 +171,7 @@ export function usePresetExport(props, state, drawFunctions) {
             }
         }
 
-        // ---------- 文字绘制（使用统一函数） ----------
+        // ---------- 文字绘制 ----------
         const textMode = props.textMode || 'none';
         const text = props.posterTextLine1;
         if (textMode !== 'none' && text) {
@@ -196,11 +199,11 @@ export function usePresetExport(props, state, drawFunctions) {
                 posY = basePos.y + offsetY;
             } else {
                 if (textRect) {
-                    posX = textRect.x + textRect.w / 2;
-                    posY = textRect.y + textRect.h / 2;
+                    posX = textRect.x + textRect.w / 2 + (textOffsetX?.value || 0);
+                    posY = textRect.y + textRect.h / 2 + (textOffsetY?.value || 0);
                 } else {
-                    posX = props.canvasWidth / 2;
-                    posY = props.canvasHeight / 2;
+                    posX = props.canvasWidth / 2 + (textOffsetX?.value || 0);
+                    posY = props.canvasHeight / 2 + (textOffsetY?.value || 0);
                 }
             }
 
