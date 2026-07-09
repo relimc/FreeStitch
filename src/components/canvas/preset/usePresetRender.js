@@ -96,25 +96,37 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
         return { imageRects, textRect };
     };
 
-    // ---------- 统一的文字绘制函数 ----------
-    const drawText = (ctx, text, posX, posY, fontSize, color, vertical) => {
+    // ---------- 统一的文字绘制函数（支持字间距和字体） ----------
+    const drawText = (ctx, text, posX, posY, fontSize, color, vertical, letterSpacing, fontFamily) => {
         if (!text) return;
         ctx.save();
         ctx.fillStyle = color;
-        ctx.font = `bold ${fontSize}px "PingFang SC", system-ui, sans-serif`;
+        const font = `bold ${fontSize}px "${fontFamily || 'PingFang SC'}", system-ui, sans-serif`;
+        ctx.font = font;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
+        const spacing = letterSpacing || 0;
+
         if (vertical) {
             const chars = text.split('');
-            const totalHeight = chars.length * fontSize * 0.9;
+            const totalHeight = chars.length * (fontSize + spacing) - spacing;
             const startY = posY - totalHeight / 2;
             chars.forEach((char, index) => {
-                const y = startY + index * fontSize * 0.9 + fontSize / 2;
+                const y = startY + index * (fontSize + spacing) + fontSize / 2;
                 ctx.fillText(char, posX, y);
             });
         } else {
-            ctx.fillText(text, posX, posY);
+            const chars = text.split('');
+            // 用第一个字符的宽度作为基准（近似）
+            const metrics = ctx.measureText(chars[0] || '字');
+            const charWidth = metrics.width;
+            const totalWidth = chars.length * (charWidth + spacing) - spacing;
+            const startX = posX - totalWidth / 2;
+            chars.forEach((char, index) => {
+                const x = startX + index * (charWidth + spacing) + charWidth / 2;
+                ctx.fillText(char, x, posY);
+            });
         }
         ctx.restore();
     };
@@ -165,7 +177,7 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                     ctx.save();
                     ctx.translate(borderSize, borderSize);
 
-                    // 绘制所有图片格子（蒙版修复：先裁剪，再背景，再图片）
+                    // 绘制图片格子（蒙版修复：先裁剪，再背景，再图片）
                     for (let i = 0; i < Math.min(cells.value.length, imageRects.length); i++) {
                         const cell = cells.value[i];
                         const rect = imageRects[i];
@@ -213,7 +225,7 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                                 const drawX = x + offsetX + clampedX;
                                 const drawY = y + offsetY + clampedY;
 
-                                // ✅ 修复蒙版：先裁剪，再背景，再图片
+                                // 先裁剪，再背景，再图片
                                 ctx.save();
                                 ctx.beginPath();
                                 if (props.maskShape !== 'none') {
@@ -244,7 +256,6 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                                 drawEmptyCell(ctx, x, y, w, h, props.useTransparent);
                             }
                         } else {
-                            // 空单元格或非图片格子
                             drawEmptyCell(ctx, x, y, w, h, props.useTransparent);
                         }
                     }
@@ -269,6 +280,8 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                         const fontSize = props.posterFontSize || 32;
                         const color = props.posterTextColor || '#ffffff';
                         const vertical = props.textVertical || false;
+                        const letterSpacing = props.textLetterSpacing || 0;
+                        const fontFamily = props.textFontFamily || 'PingFang SC';
 
                         let posX, posY;
                         if (textMode === 'overlay') {
@@ -289,7 +302,6 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                             posX = basePos.x + offsetX;
                             posY = basePos.y + offsetY;
                         } else {
-                            // 独立条模式：使用 textRect 中心 + 偏移
                             if (textRect) {
                                 posX = textRect.x + textRect.w / 2 + (textOffsetX?.value || 0);
                                 posY = textRect.y + textRect.h / 2 + (textOffsetY?.value || 0);
@@ -299,7 +311,7 @@ export function usePresetRender(props, state, drawFunctions, canvasRef) {
                             }
                         }
 
-                        drawText(ctx, text, posX, posY, fontSize, color, vertical);
+                        drawText(ctx, text, posX, posY, fontSize, color, vertical, letterSpacing, fontFamily);
                     }
 
                     ctx.restore(); // 取消 translate

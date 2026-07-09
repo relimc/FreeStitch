@@ -140,6 +140,8 @@ export function usePresetCanvas(props, emit) {
         () => props.posterTextColor,
         () => props.posterFontSize,
         () => props.textVertical,
+        () => props.textLetterSpacing,
+        () => props.textFontFamily,
         // 格子变化
         () => cells.value,
         () => textOffsetX.value,

@@ -57,25 +57,36 @@ export function usePresetExport(props, state, drawFunctions) {
         return { imageRects, textRect };
     };
 
-    // ---------- 统一的文字绘制函数 ----------
-    const drawText = (ctx, text, posX, posY, fontSize, color, vertical) => {
+    // ---------- 统一的文字绘制函数（支持字间距和字体） ----------
+    const drawText = (ctx, text, posX, posY, fontSize, color, vertical, letterSpacing, fontFamily) => {
         if (!text) return;
         ctx.save();
         ctx.fillStyle = color;
-        ctx.font = `bold ${fontSize}px "PingFang SC", system-ui, sans-serif`;
+        const font = `bold ${fontSize}px "${fontFamily || 'PingFang SC'}", system-ui, sans-serif`;
+        ctx.font = font;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
+        const spacing = letterSpacing || 0;
+
         if (vertical) {
             const chars = text.split('');
-            const totalHeight = chars.length * fontSize * 0.9;
+            const totalHeight = chars.length * (fontSize + spacing) - spacing;
             const startY = posY - totalHeight / 2;
             chars.forEach((char, index) => {
-                const y = startY + index * fontSize * 0.9 + fontSize / 2;
+                const y = startY + index * (fontSize + spacing) + fontSize / 2;
                 ctx.fillText(char, posX, y);
             });
         } else {
-            ctx.fillText(text, posX, posY);
+            const chars = text.split('');
+            const metrics = ctx.measureText(chars[0] || '字');
+            const charWidth = metrics.width;
+            const totalWidth = chars.length * (charWidth + spacing) - spacing;
+            const startX = posX - totalWidth / 2;
+            chars.forEach((char, index) => {
+                const x = startX + index * (charWidth + spacing) + charWidth / 2;
+                ctx.fillText(char, x, posY);
+            });
         }
         ctx.restore();
     };
@@ -146,7 +157,7 @@ export function usePresetExport(props, state, drawFunctions) {
                     const drawX = x + offsetX + cellOffX;
                     const drawY = y + offsetY + cellOffY;
 
-                    // ✅ 修复蒙版：先裁剪，再背景，再图片
+                    // 先裁剪，再背景，再图片
                     ctx.save();
                     ctx.beginPath();
                     if (props.maskShape !== 'none') {
@@ -178,6 +189,8 @@ export function usePresetExport(props, state, drawFunctions) {
             const fontSize = props.posterFontSize || 32;
             const color = props.posterTextColor || '#ffffff';
             const vertical = props.textVertical || false;
+            const letterSpacing = props.textLetterSpacing || 0;
+            const fontFamily = props.textFontFamily || 'PingFang SC';
 
             let posX, posY;
             if (textMode === 'overlay') {
@@ -207,7 +220,7 @@ export function usePresetExport(props, state, drawFunctions) {
                 }
             }
 
-            drawText(ctx, text, posX, posY, fontSize, color, vertical);
+            drawText(ctx, text, posX, posY, fontSize, color, vertical, letterSpacing, fontFamily);
         }
 
         ctx.restore();

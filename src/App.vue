@@ -66,6 +66,10 @@
                 :posterFontSize="posterFontSize"
                 :textAngle="textAngle"
                 :textVertical="textVertical" 
+                :textLetterSpacing="textLetterSpacing"
+                :textFontFamily="textFontFamily"
+                @update-text-letter-spacing="textLetterSpacing = $event"
+                @update-text-font-family="textFontFamily = $event"
                 @update-text-vertical="textVertical = $event"
                 @update-text-angle="textAngle = $event"
                 @mode-change="mode = $event"
@@ -181,6 +185,8 @@
                     :canvasHeight="canvasHeight"
                     :textAngle="textAngle"
                     :textVertical="textVertical"
+                    :textLetterSpacing="textLetterSpacing"
+                    :textFontFamily="textFontFamily"
                     @update:cells="presetCells = $event"
                     @select-cell="setSelectedPresetCell"
                 />
@@ -231,11 +237,13 @@ const presetSubModeId = ref('2-horizontal');
 // 文字相关
 const textMode = ref('none'); // 'none' | 'overlay' | 'top' | 'bottom' | 'left' | 'right'
 const textBarSize = ref(80);
-const posterTextLine1 = ref('美好时光');
-const posterTextColor = ref('#ffffff');
+const posterTextLine1 = ref('示例文本 可用鼠标拖拽');
+const posterTextColor = ref('#000000');
 const posterFontSize = ref(32);
 const textAngle = ref(0); // 角度，0/90/180/270
 const textVertical = ref(false);
+const textLetterSpacing = ref(0);
+const textFontFamily = ref('PingFang SC');
 
 let nextId = 1;
 

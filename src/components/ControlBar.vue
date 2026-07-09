@@ -249,7 +249,6 @@
                                         :class="{ active: textVertical }"
                                         @click="$emit('update-text-vertical', !textVertical)"
                                     >
-                                        <span class="dir-icon">{{ textVertical ? '📄' : '🌐' }}</span>
                                         {{ textVertical ? '竖排' : '横排' }}
                                     </button>
                                 </div>
@@ -260,6 +259,27 @@
                                         <input type="number" :value="posterFontSize" min="12" max="72" @input="$emit('update-poster-font-size', parseInt($event.target.value))">
                                         <span>px</span>
                                     </div>
+                                </div>
+                                <div class="param-row">
+                                    <span class="param-label">字间距</span>
+                                    <input type="range" :value="textLetterSpacing" min="0" max="20" @input="$emit('update-text-letter-spacing', parseInt($event.target.value))">
+                                    <div class="number-input-wrapper">
+                                        <input type="number" :value="textLetterSpacing" min="0" max="20" @input="$emit('update-text-letter-spacing', parseInt($event.target.value))">
+                                        <span>px</span>
+                                    </div>
+                                </div>
+                                <div class="param-row">
+                                    <span class="param-label">字体</span>
+                                    <select :value="textFontFamily" @input="$emit('update-text-font-family', $event.target.value)">
+                                        <option value="PingFang SC">苹方</option>
+                                        <option value="Microsoft YaHei">微软雅黑</option>
+                                        <option value="SimHei">黑体</option>
+                                        <option value="KaiTi">楷体</option>
+                                        <option value="Arial">Arial</option>
+                                        <option value="Georgia">Georgia</option>
+                                        <option value="serif">衬线体</option>
+                                        <option value="sans-serif">无衬线</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -315,7 +335,9 @@ const emit = defineEmits([
     'update-text-mode',
     'update-text-bar-size',
     'update-text-angle',
-    'update-text-vertical'
+    'update-text-vertical',
+    'update-text-letter-spacing',
+    'update-text-font-family',
 ]);
 
 const props = defineProps({
@@ -347,7 +369,9 @@ const props = defineProps({
     textMode: { type: String, default: 'none' },
     textBarSize: { type: Number, default: 80 },
     textAngle: { type: Number, default: 0 },
-    textVertical: { type: Boolean, default: false }
+    textVertical: { type: Boolean, default: false },
+    textLetterSpacing: { type: Number, default: 0 },
+    textFontFamily: { type: String, default: 'PingFang SC' },
 });
 
 // 验证函数
