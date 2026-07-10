@@ -1024,4 +1024,28 @@ input[type="range"] {
 .direction-btn.active:hover {
     background: #2563eb;
 }
+/* 强制高级面板内参数行不换行 */
+.panel-body .param-row {
+    flex-wrap: nowrap !important;
+    gap: 6px; /* 适当减小间距 */
+}
+
+/* 行列和单元格输入框固定宽度，不拉伸 */
+.panel-body .size-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0; /* 防止被压缩 */
+}
+.panel-body .size-inputs input {
+    width: 45px; /* 适合数字输入 */
+    padding: 4px 4px;
+    text-align: center;
+    font-size: 0.7rem;
+}
+.panel-body .size-inputs span {
+    font-size: 0.7rem;
+    color: #64748b;
+    flex-shrink: 0;
+}
 </style>
