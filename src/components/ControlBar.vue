@@ -220,6 +220,7 @@
                                     <option value="left">左侧条</option>
                                     <option value="right">右侧条</option>
                                 </select>
+                                <span class="info-icon" title="拖拽文字条中的文字时，鼠标需要放在文字条区域内">ⓘ</span>
                             </div>
 
                             <!-- 独立条尺寸（仅当选择条模式时显示） -->
@@ -1047,5 +1048,15 @@ input[type="range"] {
     font-size: 0.7rem;
     color: #64748b;
     flex-shrink: 0;
+}
+.info-icon {
+    cursor: help;
+    color: #6b7280;
+    font-size: 14px;
+    margin-left: 4px;
+    user-select: none;
+}
+.info-icon:hover {
+    color: #3b82f6;
 }
 </style>
